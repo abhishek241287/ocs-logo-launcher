@@ -1,13 +1,15 @@
 import { CURATED_APPS, type AppDef, useLauncher } from "@/context/LauncherContext";
 import { addLaunchEntry } from "@/utils/launchLog";
 import { Feather, FontAwesome } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Dimensions,
   Image,
   ImageBackground,
   Platform,
@@ -22,74 +24,131 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const SECRET_TAPS = 5;
 const TAP_WINDOW_MS = 2500;
 
+const IS_EXPO_GO =
+  (Constants.appOwnership as string | null) === "expo" ||
+  (Constants as unknown as Record<string, string>).executionEnvironment ===
+    "storeClient";
+
+const EXPO_VERSION: string =
+  (Constants as unknown as Record<string, string>).expoVersion ??
+  Constants.nativeAppVersion ??
+  "unknown";
+
+const SDK_VERSION: number | string =
+  Platform.OS === "android" ? Platform.Version : Platform.OS;
+
 async function launchApp(app: AppDef): Promise<void> {
   const { name, packageName, intentAction } = app;
 
   if (Platform.OS !== "android") {
     Alert.alert("Android only", "App launching works only on an Android device.");
+    addLaunchEntry({
+      appName: name,
+      packageName,
+      intent: intentAction ?? "android.intent.action.MAIN",
+      flags: "none",
+      status: "skipped",
+      sdkVersion: SDK_VERSION,
+      expoVersion: EXPO_VERSION,
+      isExpoGo: IS_EXPO_GO,
+      timestamp: new Date().toISOString(),
+    });
     return;
   }
 
   const action = intentAction ?? "android.intent.action.MAIN";
   const params = intentAction ? {} : { packageName };
+  const flagsStr = "none (default)";
 
-  console.log(`[OCS Launch] Attempting: ${name}`);
-  console.log(`  Action:  ${action}`);
-  console.log(`  Package: ${packageName}`);
+  console.log("[OCS] ─────────────────────────────────────────────");
+  console.log(`[OCS] App:         ${name}`);
+  console.log(`[OCS] Package:     ${packageName}`);
+  console.log(`[OCS] Action:      ${action}`);
+  console.log(`[OCS] Flags:       ${flagsStr}`);
+  console.log(`[OCS] Android SDK: API ${SDK_VERSION}`);
+  console.log(`[OCS] Expo:        ${EXPO_VERSION}`);
+  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠ (intents may be restricted)" : "Standalone APK"}`);
+  console.log("[OCS] ─────────────────────────────────────────────");
 
   try {
     await IntentLauncher.startActivityAsync(action, params);
-    console.log(`[OCS Launch] Success: ${name}`);
+    console.log(`[OCS] ✓ Launch success: ${name}`);
     addLaunchEntry({
       appName: name,
       packageName,
       intent: action,
+      flags: flagsStr,
       status: "success",
+      sdkVersion: SDK_VERSION,
+      expoVersion: EXPO_VERSION,
+      isExpoGo: IS_EXPO_GO,
       timestamp: new Date().toISOString(),
     });
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error(`[OCS Launch] FAILED: ${name}`);
-    console.error(`  Action:  ${action}`);
-    console.error(`  Package: ${packageName}`);
-    console.error(`  Error:   ${error.message}`);
-    if (error.stack) console.error(`  Stack:   ${error.stack}`);
+    console.error("[OCS] ═══════════ LAUNCH FAILED ═══════════");
+    console.error(`[OCS] App:         ${name}`);
+    console.error(`[OCS] Package:     ${packageName}`);
+    console.error(`[OCS] Action:      ${action}`);
+    console.error(`[OCS] Flags:       ${flagsStr}`);
+    console.error(`[OCS] Android SDK: API ${SDK_VERSION}`);
+    console.error(`[OCS] Expo:        ${EXPO_VERSION}`);
+    console.error(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠" : "Standalone APK"}`);
+    console.error(`[OCS] Error:       ${error.message}`);
+    console.error(`[OCS] Stack:       ${error.stack ?? "unavailable"}`);
+    console.error("[OCS] ═══════════════════════════════════════");
 
     addLaunchEntry({
       appName: name,
       packageName,
       intent: action,
+      flags: flagsStr,
       status: "failed",
       error: error.message,
+      errorStack: error.stack,
+      sdkVersion: SDK_VERSION,
+      expoVersion: EXPO_VERSION,
+      isExpoGo: IS_EXPO_GO,
       timestamp: new Date().toISOString(),
     });
 
     Alert.alert(
-      "App not installed",
-      `${name} could not be launched.\n\n${error.message}`
+      "Launch failed",
+      `${name} could not be opened.\n\n${error.message}`
     );
   }
 }
 
-function AppIcon({ app }: { app: AppDef }) {
+const CARD_SIZE = (Dimensions.get("window").width - 32 - 24) / 3;
+
+function AppCard({ app }: { app: AppDef }) {
   return (
     <TouchableOpacity
-      style={styles.appIconWrap}
+      style={styles.card}
       onPress={() => launchApp(app)}
-      activeOpacity={0.75}
+      activeOpacity={0.7}
     >
-      <View style={[styles.appIconBg, { backgroundColor: app.color + "33" }]}>
+      <View style={[styles.cardIconBg, { backgroundColor: app.color + "18" }]}>
         {app.iconLib === "FontAwesome" ? (
-          <FontAwesome name={app.icon as never} size={30} color={app.color} />
+          <FontAwesome name={app.icon as never} size={28} color={app.color} />
         ) : (
-          <Feather name={app.icon as never} size={30} color={app.color} />
+          <Feather name={app.icon as never} size={28} color={app.color} />
         )}
       </View>
-      <Text style={styles.appIconLabel} numberOfLines={1}>
+      <Text style={styles.cardLabel} numberOfLines={1}>
         {app.name}
       </Text>
     </TouchableOpacity>
   );
+}
+
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
 }
 
 export default function HomeScreen() {
@@ -97,6 +156,7 @@ export default function HomeScreen() {
     useLauncher();
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const now = useClock();
 
   useFocusEffect(
     useCallback(() => {
@@ -127,10 +187,21 @@ export default function HomeScreen() {
 
   const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
 
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   const content = (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="light" hidden={Platform.OS !== "web"} />
+      <StatusBar style={wallpaperUri ? "light" : "dark"} />
       <View style={[styles.inner, Platform.OS === "web" && { paddingTop: 67 }]}>
+
         <View style={styles.heroSection}>
           <TouchableOpacity
             onPress={handleLogoTap}
@@ -143,27 +214,36 @@ export default function HomeScreen() {
               resizeMode="contain"
             />
           </TouchableOpacity>
-          <Text style={styles.logoHint}>Tap logo 5× to access admin</Text>
+          <Text style={[styles.tagline, wallpaperUri && styles.taglineOnWallpaper]}>
+            Powering Green Future
+          </Text>
+          <Text style={[styles.dateText, wallpaperUri && styles.lightText]}>
+            {dateStr}
+          </Text>
+          <Text style={[styles.timeText, wallpaperUri && styles.lightText]}>
+            {timeStr}
+          </Text>
         </View>
 
         <View style={styles.appsSection}>
-          <View style={styles.appsHeader}>
-            <Text style={styles.appsLabel}>APPS</Text>
-          </View>
+          <Text style={[styles.appsLabel, wallpaperUri && styles.appsLabelOnWallpaper]}>
+            APPS
+          </Text>
           <ScrollView
             contentContainerStyle={styles.appsGrid}
             showsVerticalScrollIndicator={false}
           >
             {visibleApps.map((app) => (
-              <AppIcon key={app.id} app={app} />
+              <AppCard key={app.id} app={app} />
             ))}
             {visibleApps.length === 0 && (
-              <Text style={styles.noApps}>
-                No apps enabled. Tap logo 5× → Admin → Apps.
+              <Text style={[styles.noApps, wallpaperUri && styles.lightText]}>
+                No apps enabled.{"\n"}Tap logo 5× → Admin → Apps.
               </Text>
             )}
           </ScrollView>
         </View>
+
       </View>
     </SafeAreaView>
   );
@@ -175,86 +255,128 @@ export default function HomeScreen() {
         style={styles.bg}
         resizeMode="cover"
       >
-        <View style={styles.overlay} />
+        <View style={styles.wallpaperOverlay} />
         {content}
       </ImageBackground>
     );
   }
 
-  return <View style={styles.bgSolid}>{content}</View>;
+  return <View style={styles.bgLight}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
   bg: { flex: 1 },
-  bgSolid: { flex: 1, backgroundColor: "#0A1628" },
-  overlay: {
+  bgLight: { flex: 1, backgroundColor: "#F7F9FC" },
+  wallpaperOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(255,255,255,0.25)",
   },
   safe: { flex: 1 },
   inner: { flex: 1 },
+
   heroSection: {
     alignItems: "center",
-    paddingTop: 40,
+    paddingTop: 36,
     paddingBottom: 20,
   },
   logoTouch: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
+    width: 110,
+    height: 110,
+    borderRadius: 22,
     overflow: "hidden",
-    marginBottom: 8,
-    elevation: 8,
+    marginBottom: 10,
+    backgroundColor: "#FFFFFF",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
-  logo: { width: 120, height: 120 },
-  logoHint: {
-    color: "rgba(255,255,255,0.3)",
-    fontSize: 11,
+  logo: { width: 110, height: 110 },
+  tagline: {
+    color: "#0E9F6E",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.4,
+    marginBottom: 10,
+  },
+  taglineOnWallpaper: {
+    color: "#0E9F6E",
+    textShadowColor: "rgba(255,255,255,0.8)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
+  dateText: {
+    color: "#1F2937",
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+    marginBottom: 2,
+  },
+  timeText: {
+    color: "#6B7280",
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    marginTop: 4,
   },
+  lightText: {
+    color: "#1F2937",
+    textShadowColor: "rgba(255,255,255,0.7)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
+
   appsSection: { flex: 1, paddingHorizontal: 16 },
-  appsHeader: {
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
-    marginBottom: 14,
-  },
   appsLabel: {
-    color: "rgba(255,255,255,0.4)",
+    color: "#6B7280",
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  appsLabelOnWallpaper: {
+    color: "#1F2937",
   },
   appsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: 12,
     paddingBottom: 24,
   },
-  appIconWrap: { width: 72, alignItems: "center", gap: 6 },
-  appIconBg: {
-    width: 64,
-    height: 64,
+
+  card: {
+    width: CARD_SIZE,
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    gap: 10,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
   },
-  appIconLabel: {
-    color: "rgba(255,255,255,0.85)",
+  cardLabel: {
+    color: "#1F2937",
     fontSize: 11,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Inter_500Medium",
     textAlign: "center",
   },
+
   noApps: {
-    color: "rgba(255,255,255,0.3)",
+    color: "#6B7280",
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     paddingHorizontal: 20,
     marginTop: 24,
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });

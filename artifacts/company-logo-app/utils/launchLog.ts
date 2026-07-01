@@ -2,8 +2,13 @@ export interface LaunchLogEntry {
   appName: string;
   packageName: string;
   intent: string;
+  flags: string;
   status: "success" | "failed" | "skipped";
   error?: string;
+  errorStack?: string;
+  sdkVersion: number | string;
+  expoVersion: string;
+  isExpoGo: boolean;
   timestamp: string;
 }
 
