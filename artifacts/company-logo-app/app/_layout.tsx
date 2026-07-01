@@ -26,16 +26,8 @@ function RootLayoutNav() {
       <Stack.Screen name="pin-setup" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="pin-entry" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="admin/index" options={{ animation: "slide_from_bottom" }} />
-      <Stack.Screen name="admin/apps" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="admin/wallpaper" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/logo" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/appearance" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/pin" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/config" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/customer" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/device-info" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/updates" options={{ animation: "slide_from_right" }} />
-      <Stack.Screen name="admin/security" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="admin/apps" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }

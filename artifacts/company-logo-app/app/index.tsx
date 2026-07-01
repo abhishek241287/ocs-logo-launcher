@@ -1,13 +1,14 @@
-import { APP_VERSION, useLauncher } from "@/context/LauncherContext";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { CURATED_APPS, useLauncher } from "@/context/LauncherContext";
+import { Feather, FontAwesome } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
+import * as IntentLauncher from "expo-intent-launcher";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
-  Animated,
+  Alert,
   Image,
+  ImageBackground,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,60 +18,49 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-function useDateTime() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return now;
-}
-
-const APP_ICON_MAP: Record<string, { lib: "Feather" | "MaterialCommunityIcons"; name: string }> = {
-  briefcase: { lib: "Feather", name: "briefcase" },
-  camera: { lib: "Feather", name: "camera" },
-  folder: { lib: "Feather", name: "folder" },
-  calculator: { lib: "MaterialCommunityIcons", name: "calculator" },
-  settings: { lib: "Feather", name: "settings" },
-  globe: { lib: "Feather", name: "globe" },
-  mail: { lib: "Feather", name: "mail" },
-  "map-pin": { lib: "Feather", name: "map-pin" },
-  "shopping-bag": { lib: "Feather", name: "shopping-bag" },
-  youtube: { lib: "Feather", name: "youtube" },
-  image: { lib: "Feather", name: "image" },
-  users: { lib: "Feather", name: "users" },
-  phone: { lib: "Feather", name: "phone" },
-  "message-square": { lib: "Feather", name: "message-square" },
-  clock: { lib: "Feather", name: "clock" },
-  "hard-drive": { lib: "Feather", name: "hard-drive" },
-};
-
-function AppIcon({ icon, name }: { icon: string; name: string }) {
-  const def = APP_ICON_MAP[icon] ?? { lib: "Feather", name: "grid" };
-  return (
-    <View style={styles.appIconWrap}>
-      <View style={styles.appIconBg}>
-        {def.lib === "Feather" ? (
-          <Feather name={def.name as never} size={28} color="#FFFFFF" />
-        ) : (
-          <MaterialCommunityIcons name={def.name as never} size={28} color="#FFFFFF" />
-        )}
-      </View>
-      <Text style={styles.appIconLabel} numberOfLines={1}>{name}</Text>
-    </View>
-  );
-}
-
 const SECRET_TAPS = 5;
 const TAP_WINDOW_MS = 2500;
 
-export default function HomeScreen() {
-  const { config, isPinSet, isLoading, setAdminAuthenticated } = useLauncher();
-  const now = useDateTime();
+async function launchApp(packageName: string, appName: string) {
+  if (Platform.OS !== "android") {
+    Alert.alert("Android only", "App launching works only on an Android device.");
+    return;
+  }
+  try {
+    await IntentLauncher.startActivityAsync("android.intent.action.MAIN", {
+      packageName,
+    });
+  } catch {
+    Alert.alert("App not installed", `${appName} is not installed on this device.`);
+  }
+}
 
+function AppIcon({ id, name, packageName, icon, iconLib, color }: {
+  id: string; name: string; packageName: string;
+  icon: string; iconLib: "Feather" | "FontAwesome"; color: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.appIconWrap}
+      onPress={() => launchApp(packageName, name)}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.appIconBg, { backgroundColor: color + "33" }]}>
+        {iconLib === "FontAwesome" ? (
+          <FontAwesome name={icon as never} size={30} color={color} />
+        ) : (
+          <Feather name={icon as never} size={30} color={color} />
+        )}
+      </View>
+      <Text style={styles.appIconLabel} numberOfLines={1}>{name}</Text>
+    </TouchableOpacity>
+  );
+}
+
+export default function HomeScreen() {
+  const { isPinSet, isLoading, wallpaperUri, enabledApps, setAdminAuthenticated } = useLauncher();
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -78,152 +68,146 @@ export default function HomeScreen() {
     }, [setAdminAuthenticated])
   );
 
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.045, duration: 3200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 3200, useNativeDriver: true }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [pulseAnim]);
-
-  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateStr = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const enabledApps = config.visibleApps.filter((a) => a.enabled);
-
   const handleLogoTap = () => {
     tapCount.current += 1;
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
-
     if (tapTimer.current) clearTimeout(tapTimer.current);
-
     if (tapCount.current >= SECRET_TAPS) {
       tapCount.current = 0;
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      if (isLoading) return;
-      router.push(isPinSet ? "/pin-entry" : "/pin-setup");
+      if (!isLoading) {
+        router.push(isPinSet ? "/pin-entry" : "/pin-setup");
+      }
       return;
     }
-
-    tapTimer.current = setTimeout(() => {
-      tapCount.current = 0;
-    }, TAP_WINDOW_MS);
+    tapTimer.current = setTimeout(() => { tapCount.current = 0; }, TAP_WINDOW_MS);
   };
 
-  const accent = config.accentColor;
+  const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
 
-  return (
-    <View style={[styles.container, { backgroundColor: config.backgroundColor }]}>
+  const content = (
+    <SafeAreaView style={styles.safe}>
       <StatusBar style="light" hidden={Platform.OS !== "web"} />
-      <View style={[styles.topGlow, { backgroundColor: accent }]} />
-
-      <SafeAreaView style={styles.safe}>
-        <View style={[styles.statusBar, Platform.OS === "web" && { marginTop: 67 }]}>
-          <Text style={styles.statusTime}>{timeStr}</Text>
-        </View>
-
+      <View style={[styles.inner, Platform.OS === "web" && { paddingTop: 67 }]}>
         <View style={styles.heroSection}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={handleLogoTap}
-            style={styles.logoTouchable}
-          >
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              {config.logoSource === "custom" && config.customLogoUri ? (
-                <Image source={{ uri: config.customLogoUri }} style={styles.logo} resizeMode="contain" />
-              ) : (
-                <Image source={require("../assets/images/ocs-logo.jpg")} style={styles.logo} resizeMode="contain" />
-              )}
-            </Animated.View>
+          <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.9} style={styles.logoTouch}>
+            <Image
+              source={require("../assets/images/ocs-logo.jpg")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
-
-          <Text style={[styles.companyName, { color: "#FFFFFF" }]}>{config.companyName}</Text>
-          {config.customerName ? (
-            <View style={styles.customerBadge}>
-              <Text style={styles.customerLabel}>Installed for</Text>
-              <Text style={styles.customerName}>{config.customerName}</Text>
-            </View>
-          ) : null}
-          <Text style={styles.dateText}>{dateStr}</Text>
+          <Text style={styles.logoHint}>Tap logo 5× to access admin</Text>
         </View>
 
         <View style={styles.appsSection}>
-          <View style={[styles.appsDivider, { backgroundColor: accent }]} />
-          <Text style={styles.appsLabel}>APPLICATIONS</Text>
-          <ScrollView
-            contentContainerStyle={styles.appsGrid}
-            showsVerticalScrollIndicator={false}
-          >
-            {enabledApps.map((app) => (
-              <AppIcon key={app.id} icon={app.icon} name={app.name} />
+          <View style={styles.appsHeader}>
+            <Text style={styles.appsLabel}>APPS</Text>
+          </View>
+          <ScrollView contentContainerStyle={styles.appsGrid} showsVerticalScrollIndicator={false}>
+            {visibleApps.map((app) => (
+              <AppIcon key={app.id} {...app} />
             ))}
-            {enabledApps.length === 0 && (
-              <Text style={styles.noAppsText}>No apps enabled. Contact your administrator.</Text>
+            {visibleApps.length === 0 && (
+              <Text style={styles.noApps}>No apps enabled. Tap logo 5× → Admin → Apps.</Text>
             )}
           </ScrollView>
         </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerPowered}>Powered by OCS OORJA</Text>
-          <Text style={styles.footerVersion}>
-            v{APP_VERSION}{config.deviceName ? ` · ${config.deviceName}` : ""}
-          </Text>
-          {config.supportNumber ? (
-            <Text style={styles.footerSupport}>Support: {config.supportNumber}</Text>
-          ) : null}
-        </View>
-      </SafeAreaView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
+
+  if (wallpaperUri) {
+    return (
+      <ImageBackground source={{ uri: wallpaperUri }} style={styles.bg} resizeMode="cover">
+        <View style={styles.overlay} />
+        {content}
+      </ImageBackground>
+    );
+  }
+
+  return <View style={styles.bgSolid}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  topGlow: {
-    position: "absolute", top: -100, left: "50%", marginLeft: -160,
-    width: 320, height: 320, borderRadius: 160, opacity: 0.07,
+  bg: { flex: 1 },
+  bgSolid: { flex: 1, backgroundColor: "#0A1628" },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   safe: { flex: 1 },
-  statusBar: {
-    flexDirection: "row", alignItems: "center", justifyContent: "flex-end",
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4,
-  },
-  statusTime: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_500Medium" },
-  heroSection: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 10 },
-  logoTouchable: {
-    width: 160, height: 160, alignItems: "center", justifyContent: "center", marginBottom: 18,
-  },
-  logo: { width: 148, height: 148, borderRadius: 22 },
-  companyName: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: 1, marginBottom: 6 },
-  customerBadge: { alignItems: "center", marginBottom: 10 },
-  customerLabel: { color: "rgba(255,255,255,0.32)", fontSize: 10, fontFamily: "Inter_400Regular", letterSpacing: 0.5 },
-  customerName: { color: "rgba(255,255,255,0.65)", fontSize: 14, fontFamily: "Inter_500Medium" },
-  dateText: { color: "rgba(255,255,255,0.42)", fontSize: 13, fontFamily: "Inter_400Regular" },
-  appsSection: { flex: 1, paddingHorizontal: 16, paddingBottom: 4 },
-  appsDivider: { height: 2, borderRadius: 1, marginBottom: 12, opacity: 0.5 },
-  appsLabel: { color: "rgba(255,255,255,0.25)", fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5, marginBottom: 10, marginLeft: 4 },
-  appsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "flex-start", paddingBottom: 8 },
-  appIconWrap: { width: 76, alignItems: "center", gap: 6 },
-  appIconBg: {
-    width: 64, height: 64, borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-    alignItems: "center", justifyContent: "center",
-  },
-  appIconLabel: { color: "rgba(255,255,255,0.72)", fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
-  noAppsText: { color: "rgba(255,255,255,0.28)", fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 20, marginTop: 20 },
-  footer: {
+  inner: { flex: 1 },
+  heroSection: {
     alignItems: "center",
-    paddingBottom: Platform.OS === "web" ? 30 : 14,
-    paddingTop: 6,
-    gap: 3,
+    paddingTop: 40,
+    paddingBottom: 20,
   },
-  footerPowered: { color: "rgba(255,255,255,0.2)", fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5 },
-  footerVersion: { color: "rgba(255,255,255,0.15)", fontSize: 10, fontFamily: "Inter_400Regular" },
-  footerSupport: { color: "rgba(255,255,255,0.2)", fontSize: 10, fontFamily: "Inter_400Regular" },
+  logoTouch: {
+    width: 120,
+    height: 120,
+    borderRadius: 24,
+    overflow: "hidden",
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  logo: { width: 120, height: 120 },
+  logoHint: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
+  },
+  appsSection: { flex: 1, paddingHorizontal: 16 },
+  appsHeader: {
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+    marginBottom: 14,
+  },
+  appsLabel: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1.5,
+  },
+  appsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    paddingBottom: 24,
+  },
+  appIconWrap: { width: 72, alignItems: "center", gap: 6 },
+  appIconBg: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  appIconLabel: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  noApps: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    paddingHorizontal: 20,
+    marginTop: 24,
+    lineHeight: 20,
+  },
 });
