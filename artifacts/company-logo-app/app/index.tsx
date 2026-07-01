@@ -37,15 +37,34 @@ const SDK_VERSION: number | string =
   Platform.OS === "android" ? Platform.Version : Platform.OS;
 
 // FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+// These are the exact flags Android's own launcher uses when tapping a home screen icon.
 const LAUNCHER_FLAGS = 0x10000000 | 0x00200000;
-const LAUNCHER_FLAGS_STR = `0x${LAUNCHER_FLAGS.toString(16).toUpperCase()} (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)`;
 
-// Module-level concurrency guard — prevents "activity already started" crash
+// Module-level concurrency guard — prevents double-launch on rapid taps
 let isLaunching = false;
 let lastLaunchTime = 0;
 const LAUNCH_DEBOUNCE_MS = 500;
 
-async function launchApp(app: AppDef): Promise<void> {
+/**
+ * Launch an app using the correct strategy:
+ *
+ * Package-based (YouTube, Chrome, Gmail, WhatsApp, Maps, Instagram, Files):
+ *   action=MAIN + category=LAUNCHER + packageName + launcher flags
+ *   → identical to what Android's own home screen does; resolves to the
+ *     app's declared MAIN/LAUNCHER activity and nothing else.
+ *
+ * Action-based (Camera, Settings):
+ *   fire the system action directly with no package restriction.
+ *   Camera uses STILL_IMAGE_CAMERA (opens viewfinder, never routes to Play).
+ *   Settings uses android.settings.SETTINGS.
+ *
+ * Hidden apps (not in enabledApps) are silently blocked even if launchApp
+ * is called directly, providing defense-in-depth beyond the UI filter.
+ */
+async function launchApp(app: AppDef, enabledApps: string[]): Promise<void> {
+  // Defense-in-depth: silently reject any app not in the allowed list.
+  if (!enabledApps.includes(app.id)) return;
+
   const now = Date.now();
   if (isLaunching || now - lastLaunchTime < LAUNCH_DEBOUNCE_MS) return;
 
@@ -71,13 +90,25 @@ async function launchApp(app: AppDef): Promise<void> {
   isLaunching = true;
   lastLaunchTime = now;
 
-  // Package-based: packageName locks the intent to one specific app (no chooser).
-  // Action-based (Camera, Settings): no packageName needed.
+  /**
+   * Package-based: MAIN + LAUNCHER category + packageName
+   *   The LAUNCHER category restricts resolution to activities that explicitly
+   *   declare <category android:name="android.intent.category.LAUNCHER"/>,
+   *   i.e. the app's primary entry point. Without this category Android can
+   *   match other MAIN activities in the same package (setup, provisioning,
+   *   account-setup screens) which is exactly what we want to avoid.
+   *
+   * Action-based: fire the action directly, no package restriction.
+   *   The system routes Camera/Settings to the appropriate system app.
+   */
   const action = intentAction ?? "android.intent.action.MAIN";
-  const params = isActionIntent
+  const params: IntentLauncher.IntentLauncherParams = isActionIntent
     ? {}
-    : { packageName, flags: LAUNCHER_FLAGS };
-  const flagsStr = isActionIntent ? "none (action intent)" : LAUNCHER_FLAGS_STR;
+    : {
+        packageName,
+        category: "android.intent.category.LAUNCHER",
+        flags: LAUNCHER_FLAGS,
+      };
 
   try {
     await IntentLauncher.startActivityAsync(action, params);
@@ -85,7 +116,7 @@ async function launchApp(app: AppDef): Promise<void> {
       appName: name,
       packageName,
       intent: action,
-      flags: flagsStr,
+      flags: isActionIntent ? "none (action intent)" : `LAUNCHER category + 0x${LAUNCHER_FLAGS.toString(16).toUpperCase()}`,
       status: "success",
       sdkVersion: SDK_VERSION,
       expoVersion: EXPO_VERSION,
@@ -105,7 +136,7 @@ async function launchApp(app: AppDef): Promise<void> {
       appName: name,
       packageName,
       intent: action,
-      flags: flagsStr,
+      flags: isActionIntent ? "none (action intent)" : `LAUNCHER category + 0x${LAUNCHER_FLAGS.toString(16).toUpperCase()}`,
       status: "failed",
       error: isNotInstalled ? `App not installed: ${packageName}` : error.message,
       errorStack: error.stack,
@@ -128,9 +159,13 @@ async function launchApp(app: AppDef): Promise<void> {
 
 const CARD_SIZE = (Dimensions.get("window").width - 32 - 24) / 3;
 
-function AppCard({ app }: { app: AppDef }) {
+function AppCard({ app, enabledApps }: { app: AppDef; enabledApps: string[] }) {
   return (
-    <TouchableOpacity style={styles.card} onPress={() => launchApp(app)} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => launchApp(app, enabledApps)}
+      activeOpacity={0.7}
+    >
       <View style={[styles.cardIconBg, { backgroundColor: app.color + "18" }]}>
         {app.iconLib === "MaterialCommunityIcons" ? (
           <MaterialCommunityIcons name={app.icon as never} size={28} color={app.color} />
@@ -183,6 +218,7 @@ export default function HomeScreen() {
     tapTimer.current = setTimeout(() => { tapCount.current = 0; }, TAP_WINDOW_MS);
   };
 
+  // Only show apps that are in the enabled list — hidden apps get no card rendered.
   const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
 
   const dateStr = now.toLocaleDateString("en-US", {
@@ -215,7 +251,9 @@ export default function HomeScreen() {
         <View style={styles.appsSection}>
           <Text style={[styles.appsLabel, wallpaperUri && styles.appsLabelOnWallpaper]}>APPS</Text>
           <ScrollView contentContainerStyle={styles.appsGrid} showsVerticalScrollIndicator={false}>
-            {visibleApps.map((app) => <AppCard key={app.id} app={app} />)}
+            {visibleApps.map((app) => (
+              <AppCard key={app.id} app={app} enabledApps={enabledApps} />
+            ))}
             {visibleApps.length === 0 && (
               <Text style={[styles.noApps, wallpaperUri && styles.textOnWallpaper]}>
                 No apps enabled.{"\n"}Tap logo 5× → Admin → Apps.

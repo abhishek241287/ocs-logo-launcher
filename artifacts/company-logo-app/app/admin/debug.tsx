@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: LaunchLogEntry["status"] }) {
 }
 
 export default function DebugScreen() {
-  const { isAdminAuthenticated, customApps } = useLauncher();
+  const { isAdminAuthenticated } = useLauncher();
   const [log, setLog] = useState<LaunchLogEntry[]>(() => getLaunchLog());
 
   useFocusEffect(
@@ -89,7 +89,7 @@ export default function DebugScreen() {
     ]);
   };
 
-  const allApps = [...CURATED_APPS, ...customApps];
+  const allApps = CURATED_APPS;
 
   return (
     <View style={styles.container}>
@@ -146,7 +146,7 @@ export default function DebugScreen() {
 
           <View style={styles.appsTable}>
             <Text style={styles.sectionLabel}>
-              APP REGISTRY ({allApps.length} apps, {customApps.length} custom)
+              APP REGISTRY ({allApps.length} apps)
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>

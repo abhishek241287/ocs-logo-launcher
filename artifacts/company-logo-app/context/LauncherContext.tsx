@@ -8,7 +8,15 @@ const APPS_KEY = "@ocs:enabled_apps";
 export interface AppDef {
   id: string;
   name: string;
+  /**
+   * Android package name for package-based launches.
+   * Leave empty string for pure action-based intents (Camera, Settings).
+   */
   packageName: string;
+  /**
+   * When set, this action is used directly (no package restriction).
+   * Used for system intents like Camera and Settings.
+   */
   intentAction?: string;
   iconLib: "MaterialIcons" | "MaterialCommunityIcons";
   icon: string;
@@ -67,8 +75,12 @@ export const CURATED_APPS: AppDef[] = [
   {
     id: "camera",
     name: "Camera",
-    packageName: "android.media.action.IMAGE_CAPTURE",
-    intentAction: "android.media.action.IMAGE_CAPTURE",
+    // No package restriction — system resolves the default camera app.
+    // STILL_IMAGE_CAMERA opens the viewfinder; it does NOT expect a result
+    // back and will NOT route to Google Play if no explicit handler exists
+    // (unlike IMAGE_CAPTURE which can trigger Play Store on unconfigured devices).
+    packageName: "",
+    intentAction: "android.media.action.STILL_IMAGE_CAMERA",
     iconLib: "MaterialIcons",
     icon: "photo-camera",
     color: "#607D8B",
@@ -84,7 +96,7 @@ export const CURATED_APPS: AppDef[] = [
   {
     id: "settings",
     name: "Settings",
-    packageName: "android.settings.SETTINGS",
+    packageName: "",
     intentAction: "android.settings.SETTINGS",
     iconLib: "MaterialIcons",
     icon: "settings",
