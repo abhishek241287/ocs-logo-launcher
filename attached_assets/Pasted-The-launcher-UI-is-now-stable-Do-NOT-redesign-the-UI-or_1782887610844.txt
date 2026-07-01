@@ -1,0 +1,143 @@
+The launcher UI is now stable.
+
+Do NOT redesign the UI or add unnecessary features.
+
+The next goal is to prepare the app for a standalone Android APK.
+
+========================================
+PHASE 1 - REMOVE EXPO GO LIMITATIONS
+========================================
+
+Remove any code that only exists as a workaround for Expo Go.
+
+Do not display:
+
+"Direct app launching is limited in Expo Go."
+
+Instead, write the code so it works in a standalone APK.
+
+========================================
+PHASE 2 - STANDALONE APK
+========================================
+
+Configure the project for Android APK release.
+
+Verify:
+
+✓ app.json
+✓ android package name
+✓ adaptive icon
+✓ splash screen
+✓ permissions
+✓ orientation = portrait
+
+Generate a clean Android configuration suitable for release.
+
+========================================
+PHASE 3 - APP LAUNCHER
+========================================
+
+Prepare the launcher to work correctly in the standalone APK.
+
+Requirements:
+
+• Launch apps by package name.
+• Never show the Android "Open With" chooser.
+• If the package exists, open it immediately.
+• If the package does not exist, show:
+
+"App is not installed."
+
+========================================
+PHASE 4 - WALLPAPER
+========================================
+
+Finish the wallpaper feature.
+
+Requirements:
+
+✓ Choose image
+✓ Save in AsyncStorage
+✓ Restore after restart
+✓ Remove wallpaper
+✓ Confirmation dialog
+
+========================================
+PHASE 5 - ALLOWED APPS
+========================================
+
+Improve the Apps Manager.
+
+Instead of a fixed list only:
+
+Add:
+
++ Add Custom App
+
+Admin enters:
+
+• App Name
+• Android Package Name
+
+Example:
+
+Facebook
+com.facebook.katana
+
+Save to AsyncStorage.
+
+Allow enabling/disabling custom apps exactly like built-in apps.
+
+========================================
+PHASE 6 - ADMIN
+========================================
+
+Admin PIN remains hidden.
+
+Logo tapped 5 times
+→ PIN
+→ Admin
+
+Admin menu:
+
+• Allowed Apps
+• Wallpaper
+• Developer Debug
+
+Nothing else.
+
+========================================
+PHASE 7 - CLEANUP
+========================================
+
+Remove all unused code.
+
+Delete:
+
+• OTA
+• Battery monitor
+• Network monitor
+• Customer branding pages
+• Device info pages
+• Update manager
+• Boot animation
+• Appearance pages
+• Expo Go workaround code
+
+========================================
+PHASE 8 - BUILD READY
+========================================
+
+When complete, ensure the project is ready for:
+
+eas build --platform android --profile preview
+
+No TypeScript errors.
+
+No lint errors.
+
+No unused imports.
+
+No dead code.
+
+Only finish when the project is APK-ready.

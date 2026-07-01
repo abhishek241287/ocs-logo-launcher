@@ -4,30 +4,31 @@
     "slug": "company-logo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ocs-logo.jpg",
     "scheme": "ocsoorja",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/ocs-logo.jpg",
       "resizeMode": "contain",
-      "backgroundColor": "#071A0A"
+      "backgroundColor": "#F7F9FC"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "in.ocs.oorja.launcher"
     },
     "android": {
       "package": "in.ocs.oorja.launcher",
-      "backgroundColor": "#071A0A",
+      "backgroundColor": "#F7F9FC",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#071A0A"
+        "backgroundColor": "#F7F9FC"
       },
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.QUERY_ALL_PACKAGES"
       ],
       "intentFilters": [
         {
@@ -50,7 +51,6 @@
         }
       ],
       "expo-font",
-      "expo-web-browser",
       [
         "expo-media-library",
         {
@@ -62,7 +62,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow OCS OORJA Launcher to access your photos to set wallpaper and logo."
+          "photosPermission": "Allow OCS OORJA Launcher to access your photos to set wallpaper."
         }
       ]
     ],

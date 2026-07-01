@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 const PIN_KEY = "@ocs:pin";
 const WALLPAPER_KEY = "@ocs:wallpaper";
 const APPS_KEY = "@ocs:enabled_apps";
+const CUSTOM_APPS_KEY = "@ocs:custom_apps";
 
 export interface AppDef {
   id: string;
@@ -100,12 +101,15 @@ interface LauncherContextType {
   isAdminAuthenticated: boolean;
   wallpaperUri: string | null;
   enabledApps: string[];
+  customApps: AppDef[];
   isLoading: boolean;
   setupPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => boolean;
   setAdminAuthenticated: (value: boolean) => void;
   setWallpaper: (uri: string | null) => Promise<void>;
   setEnabledApps: (ids: string[]) => Promise<void>;
+  addCustomApp: (name: string, packageName: string) => Promise<void>;
+  removeCustomApp: (id: string) => Promise<void>;
 }
 
 const LauncherContext = createContext<LauncherContextType | null>(null);
@@ -115,6 +119,7 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [wallpaperUri, setWallpaperUri] = useState<string | null>(null);
   const [enabledApps, setEnabledAppsState] = useState<string[]>(DEFAULT_ENABLED);
+  const [customApps, setCustomAppsState] = useState<AppDef[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -122,14 +127,16 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem(PIN_KEY),
       AsyncStorage.getItem(WALLPAPER_KEY),
       AsyncStorage.getItem(APPS_KEY),
+      AsyncStorage.getItem(CUSTOM_APPS_KEY),
     ])
-      .then(([storedPin, storedWallpaper, storedApps]) => {
+      .then(([storedPin, storedWallpaper, storedApps, storedCustom]) => {
         if (storedPin) setPin(storedPin);
         if (storedWallpaper) setWallpaperUri(storedWallpaper);
         if (storedApps) {
-          try {
-            setEnabledAppsState(JSON.parse(storedApps));
-          } catch {}
+          try { setEnabledAppsState(JSON.parse(storedApps)); } catch {}
+        }
+        if (storedCustom) {
+          try { setCustomAppsState(JSON.parse(storedCustom)); } catch {}
         }
       })
       .catch(() => {})
@@ -161,6 +168,40 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
     setEnabledAppsState(ids);
   }, []);
 
+  const addCustomApp = useCallback(
+    async (name: string, packageName: string) => {
+      const newApp: AppDef = {
+        id: `custom_${Date.now()}`,
+        name: name.trim(),
+        packageName: packageName.trim(),
+        iconLib: "MaterialIcons",
+        icon: "apps",
+        color: "#6B7280",
+      };
+      const nextCustom = [...customApps, newApp];
+      await AsyncStorage.setItem(CUSTOM_APPS_KEY, JSON.stringify(nextCustom));
+      setCustomAppsState(nextCustom);
+      // Auto-enable the new custom app
+      const nextEnabled = [...enabledApps, newApp.id];
+      await AsyncStorage.setItem(APPS_KEY, JSON.stringify(nextEnabled));
+      setEnabledAppsState(nextEnabled);
+    },
+    [customApps, enabledApps]
+  );
+
+  const removeCustomApp = useCallback(
+    async (id: string) => {
+      const nextCustom = customApps.filter((a) => a.id !== id);
+      await AsyncStorage.setItem(CUSTOM_APPS_KEY, JSON.stringify(nextCustom));
+      setCustomAppsState(nextCustom);
+      // Remove from enabled list
+      const nextEnabled = enabledApps.filter((a) => a !== id);
+      await AsyncStorage.setItem(APPS_KEY, JSON.stringify(nextEnabled));
+      setEnabledAppsState(nextEnabled);
+    },
+    [customApps, enabledApps]
+  );
+
   return (
     <LauncherContext.Provider
       value={{
@@ -169,12 +210,15 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
         isAdminAuthenticated,
         wallpaperUri,
         enabledApps,
+        customApps,
         isLoading,
         setupPin,
         verifyPin,
         setAdminAuthenticated,
         setWallpaper,
         setEnabledApps,
+        addCustomApp,
+        removeCustomApp,
       }}
     >
       {children}

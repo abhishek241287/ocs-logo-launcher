@@ -41,21 +41,17 @@ const LAUNCHER_FLAGS = 0x10000000 | 0x00200000; // 270532608
 const LAUNCHER_FLAGS_STR = `0x${LAUNCHER_FLAGS.toString(16).toUpperCase()} (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)`;
 
 // ─── Concurrency guard ────────────────────────────────────────────────────────
-// Prevents "IntentLauncher activity is already started" crash.
-// Module-level so it persists across re-renders.
 let isLaunching = false;
 let lastLaunchTime = 0;
 const LAUNCH_DEBOUNCE_MS = 500;
 
 async function launchApp(app: AppDef): Promise<void> {
-  // ── Debounce + concurrency guard ──────────────────────────────────────────
   const now = Date.now();
   if (isLaunching || now - lastLaunchTime < LAUNCH_DEBOUNCE_MS) return;
 
   const { name, packageName, intentAction } = app;
   const isActionIntent = !!intentAction;
 
-  // ── Non-Android ───────────────────────────────────────────────────────────
   if (Platform.OS !== "android") {
     Alert.alert("Android only", "App launching works only on an Android device.");
     addLaunchEntry({
@@ -72,36 +68,11 @@ async function launchApp(app: AppDef): Promise<void> {
     return;
   }
 
-  // ── Expo Go limitation for package-based apps ─────────────────────────────
-  // Expo Go cannot call PackageManager.getLaunchIntentForPackage() — any
-  // package-based implicit intent may still trigger the "Open with" chooser
-  // or a SecurityException. Action-based intents (Camera, Settings) still work.
-  if (IS_EXPO_GO && !isActionIntent) {
-    Alert.alert(
-      "Expo Go Limitation",
-      "Direct app launching is limited in Expo Go.\nThis feature will work correctly in the standalone APK."
-    );
-    addLaunchEntry({
-      appName: name,
-      packageName,
-      intent: "android.intent.action.MAIN",
-      flags: LAUNCHER_FLAGS_STR,
-      status: "skipped (Expo Go limitation)",
-      sdkVersion: SDK_VERSION,
-      expoVersion: EXPO_VERSION,
-      isExpoGo: true,
-      timestamp: new Date().toISOString(),
-    });
-    return;
-  }
-
-  // ── Lock ──────────────────────────────────────────────────────────────────
   isLaunching = true;
   lastLaunchTime = now;
 
-  // For package-based apps: packageName alone restricts the intent to that app
-  // (equivalent to intent.setPackage(packageName)) — no category added so
-  // Android never shows the "Open with" chooser.
+  // Package-based: packageName alone locks the intent to one specific app —
+  // no "Open with" chooser. Action-based (Camera, Settings): no packageName needed.
   const action = intentAction ?? "android.intent.action.MAIN";
   const params = isActionIntent
     ? {}
@@ -115,7 +86,7 @@ async function launchApp(app: AppDef): Promise<void> {
   console.log(`[OCS] Flags:       ${flagsStr}`);
   console.log(`[OCS] Android SDK: API ${SDK_VERSION}`);
   console.log(`[OCS] Expo:        ${EXPO_VERSION}`);
-  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠" : "Standalone APK"}`);
+  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go" : "Standalone APK"}`);
   console.log("[OCS] ─────────────────────────────────────────────");
 
   try {
@@ -134,14 +105,13 @@ async function launchApp(app: AppDef): Promise<void> {
     });
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error("[OCS] ═══════════ LAUNCH FAILED ═══════════");
-    console.error(`[OCS] App:         ${name}`);
-    console.error(`[OCS] Package:     ${packageName}`);
-    console.error(`[OCS] Action:      ${action}`);
-    console.error(`[OCS] Flags:       ${flagsStr}`);
-    console.error(`[OCS] Error:       ${error.message}`);
-    console.error(`[OCS] Stack:       ${error.stack ?? "unavailable"}`);
-    console.error("[OCS] ═══════════════════════════════════════");
+    console.error(`[OCS] ✗ Failed: ${name} — ${error.message}`);
+
+    const isNotInstalled =
+      error.message.includes("ActivityNotFoundException") ||
+      error.message.includes("No Activity found") ||
+      error.message.includes("No activity found") ||
+      error.message.includes("Unable to find explicit activity");
 
     addLaunchEntry({
       appName: name,
@@ -149,7 +119,7 @@ async function launchApp(app: AppDef): Promise<void> {
       intent: action,
       flags: flagsStr,
       status: "failed",
-      error: error.message,
+      error: isNotInstalled ? `App not installed: ${packageName}` : error.message,
       errorStack: error.stack,
       sdkVersion: SDK_VERSION,
       expoVersion: EXPO_VERSION,
@@ -157,9 +127,13 @@ async function launchApp(app: AppDef): Promise<void> {
       timestamp: new Date().toISOString(),
     });
 
-    Alert.alert("Launch failed", `${name} could not be opened.\n\n${error.message}`);
+    Alert.alert(
+      isNotInstalled ? "App not installed" : "Launch failed",
+      isNotInstalled
+        ? `${name} is not installed on this device.`
+        : `${name} could not be opened.\n\n${error.message}`
+    );
   } finally {
-    // Always release the lock so subsequent launches work
     isLaunching = false;
   }
 }
@@ -197,7 +171,7 @@ function useClock() {
 }
 
 export default function HomeScreen() {
-  const { isPinSet, isLoading, wallpaperUri, enabledApps, setAdminAuthenticated } =
+  const { isPinSet, isLoading, wallpaperUri, enabledApps, customApps, setAdminAuthenticated } =
     useLauncher();
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,8 +179,6 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // When the home screen regains focus (user returned from launched app),
-      // the module-level lock is already released in the finally block above.
       setAdminAuthenticated(false);
     }, [setAdminAuthenticated])
   );
@@ -232,7 +204,8 @@ export default function HomeScreen() {
     }, TAP_WINDOW_MS);
   };
 
-  const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
+  const allApps = [...CURATED_APPS, ...customApps];
+  const visibleApps = allApps.filter((a) => enabledApps.includes(a.id));
 
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long",

@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: LaunchLogEntry["status"] }) {
 }
 
 export default function DebugScreen() {
-  const { isAdminAuthenticated } = useLauncher();
+  const { isAdminAuthenticated, customApps } = useLauncher();
   const [log, setLog] = useState<LaunchLogEntry[]>(() => getLaunchLog());
 
   useFocusEffect(
@@ -89,6 +89,8 @@ export default function DebugScreen() {
     ]);
   };
 
+  const allApps = [...CURATED_APPS, ...customApps];
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -113,9 +115,8 @@ export default function DebugScreen() {
               <View style={styles.warningText}>
                 <Text style={styles.warningTitle}>Running inside Expo Go</Text>
                 <Text style={styles.warningBody}>
-                  Expo Go sandboxes certain Android intents. Apps that fail here may work
-                  correctly in a standalone APK build. Re-validate app launching after
-                  building the standalone APK before concluding an app is broken.
+                  Some Android intents are sandboxed in Expo Go. Re-validate app
+                  launching after building the standalone APK.
                 </Text>
               </View>
             </View>
@@ -144,7 +145,9 @@ export default function DebugScreen() {
           </View>
 
           <View style={styles.appsTable}>
-            <Text style={styles.sectionLabel}>CURATED APP REGISTRY</Text>
+            <Text style={styles.sectionLabel}>
+              APP REGISTRY ({allApps.length} apps, {customApps.length} custom)
+            </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 <View style={styles.tableHeader}>
@@ -152,7 +155,7 @@ export default function DebugScreen() {
                   <Text style={[styles.th, { width: 220 }]}>Package / Intent</Text>
                   <Text style={[styles.th, { width: 70 }]}>Type</Text>
                 </View>
-                {CURATED_APPS.map((app) => (
+                {allApps.map((app) => (
                   <View key={app.id} style={styles.tableRow}>
                     <Text style={[styles.td, { width: 90 }]} numberOfLines={1}>
                       {app.name}
@@ -161,7 +164,7 @@ export default function DebugScreen() {
                       {app.packageName}
                     </Text>
                     <Text style={[styles.tdDim, { width: 70 }]}>
-                      {app.intentAction ? "action" : "package"}
+                      {app.intentAction ? "action" : app.id.startsWith("custom_") ? "custom" : "package"}
                     </Text>
                   </View>
                 ))}
