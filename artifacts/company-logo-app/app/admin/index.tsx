@@ -24,6 +24,14 @@ const MENU = [
     sub: "Choose which apps appear on the home screen",
     color: "#1A4A2A",
   },
+  {
+    id: "debug",
+    route: "/admin/debug",
+    icon: "terminal",
+    label: "Developer Debug",
+    sub: "App launch log with status and error details",
+    color: "#3A2A5A",
+  },
 ];
 
 export default function AdminScreen() {

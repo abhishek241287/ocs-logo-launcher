@@ -28,6 +28,7 @@ function RootLayoutNav() {
       <Stack.Screen name="admin/index" options={{ animation: "slide_from_bottom" }} />
       <Stack.Screen name="admin/wallpaper" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="admin/apps" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="admin/debug" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }

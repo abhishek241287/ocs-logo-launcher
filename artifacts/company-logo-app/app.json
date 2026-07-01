@@ -3,7 +3,7 @@
     "name": "OCS OORJA Launcher",
     "slug": "company-logo-app",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ocsoorja",
     "userInterfaceStyle": "dark",
@@ -25,14 +25,9 @@
         "backgroundColor": "#071A0A"
       },
       "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.SET_WALLPAPER",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.BATTERY_STATS",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.ACCESS_WIFI_STATE"
+        "android.permission.READ_MEDIA_IMAGES"
       ],
       "intentFilters": [
         {

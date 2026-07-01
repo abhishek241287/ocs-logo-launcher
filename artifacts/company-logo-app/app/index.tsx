@@ -1,10 +1,11 @@
-import { CURATED_APPS, useLauncher } from "@/context/LauncherContext";
+import { CURATED_APPS, type AppDef, useLauncher } from "@/context/LauncherContext";
+import { addLaunchEntry } from "@/utils/launchLog";
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useRef } from "react";
 import {
   Alert,
   Image,
@@ -21,44 +22,79 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const SECRET_TAPS = 5;
 const TAP_WINDOW_MS = 2500;
 
-async function launchApp(packageName: string, appName: string) {
+async function launchApp(app: AppDef): Promise<void> {
+  const { name, packageName, intentAction } = app;
+
   if (Platform.OS !== "android") {
     Alert.alert("Android only", "App launching works only on an Android device.");
     return;
   }
+
+  const action = intentAction ?? "android.intent.action.MAIN";
+  const params = intentAction ? {} : { packageName };
+
+  console.log(`[OCS Launch] Attempting: ${name}`);
+  console.log(`  Action:  ${action}`);
+  console.log(`  Package: ${packageName}`);
+
   try {
-    await IntentLauncher.startActivityAsync("android.intent.action.MAIN", {
+    await IntentLauncher.startActivityAsync(action, params);
+    console.log(`[OCS Launch] Success: ${name}`);
+    addLaunchEntry({
+      appName: name,
       packageName,
+      intent: action,
+      status: "success",
+      timestamp: new Date().toISOString(),
     });
-  } catch {
-    Alert.alert("App not installed", `${appName} is not installed on this device.`);
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error(`[OCS Launch] FAILED: ${name}`);
+    console.error(`  Action:  ${action}`);
+    console.error(`  Package: ${packageName}`);
+    console.error(`  Error:   ${error.message}`);
+    if (error.stack) console.error(`  Stack:   ${error.stack}`);
+
+    addLaunchEntry({
+      appName: name,
+      packageName,
+      intent: action,
+      status: "failed",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+
+    Alert.alert(
+      "App not installed",
+      `${name} could not be launched.\n\n${error.message}`
+    );
   }
 }
 
-function AppIcon({ id, name, packageName, icon, iconLib, color }: {
-  id: string; name: string; packageName: string;
-  icon: string; iconLib: "Feather" | "FontAwesome"; color: string;
-}) {
+function AppIcon({ app }: { app: AppDef }) {
   return (
     <TouchableOpacity
       style={styles.appIconWrap}
-      onPress={() => launchApp(packageName, name)}
+      onPress={() => launchApp(app)}
       activeOpacity={0.75}
     >
-      <View style={[styles.appIconBg, { backgroundColor: color + "33" }]}>
-        {iconLib === "FontAwesome" ? (
-          <FontAwesome name={icon as never} size={30} color={color} />
+      <View style={[styles.appIconBg, { backgroundColor: app.color + "33" }]}>
+        {app.iconLib === "FontAwesome" ? (
+          <FontAwesome name={app.icon as never} size={30} color={app.color} />
         ) : (
-          <Feather name={icon as never} size={30} color={color} />
+          <Feather name={app.icon as never} size={30} color={app.color} />
         )}
       </View>
-      <Text style={styles.appIconLabel} numberOfLines={1}>{name}</Text>
+      <Text style={styles.appIconLabel} numberOfLines={1}>
+        {app.name}
+      </Text>
     </TouchableOpacity>
   );
 }
 
 export default function HomeScreen() {
-  const { isPinSet, isLoading, wallpaperUri, enabledApps, setAdminAuthenticated } = useLauncher();
+  const { isPinSet, isLoading, wallpaperUri, enabledApps, setAdminAuthenticated } =
+    useLauncher();
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,7 +120,9 @@ export default function HomeScreen() {
       }
       return;
     }
-    tapTimer.current = setTimeout(() => { tapCount.current = 0; }, TAP_WINDOW_MS);
+    tapTimer.current = setTimeout(() => {
+      tapCount.current = 0;
+    }, TAP_WINDOW_MS);
   };
 
   const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
@@ -94,7 +132,11 @@ export default function HomeScreen() {
       <StatusBar style="light" hidden={Platform.OS !== "web"} />
       <View style={[styles.inner, Platform.OS === "web" && { paddingTop: 67 }]}>
         <View style={styles.heroSection}>
-          <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.9} style={styles.logoTouch}>
+          <TouchableOpacity
+            onPress={handleLogoTap}
+            activeOpacity={0.9}
+            style={styles.logoTouch}
+          >
             <Image
               source={require("../assets/images/ocs-logo.jpg")}
               style={styles.logo}
@@ -108,12 +150,17 @@ export default function HomeScreen() {
           <View style={styles.appsHeader}>
             <Text style={styles.appsLabel}>APPS</Text>
           </View>
-          <ScrollView contentContainerStyle={styles.appsGrid} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.appsGrid}
+            showsVerticalScrollIndicator={false}
+          >
             {visibleApps.map((app) => (
-              <AppIcon key={app.id} {...app} />
+              <AppIcon key={app.id} app={app} />
             ))}
             {visibleApps.length === 0 && (
-              <Text style={styles.noApps}>No apps enabled. Tap logo 5× → Admin → Apps.</Text>
+              <Text style={styles.noApps}>
+                No apps enabled. Tap logo 5× → Admin → Apps.
+              </Text>
             )}
           </ScrollView>
         </View>
@@ -123,7 +170,11 @@ export default function HomeScreen() {
 
   if (wallpaperUri) {
     return (
-      <ImageBackground source={{ uri: wallpaperUri }} style={styles.bg} resizeMode="cover">
+      <ImageBackground
+        source={{ uri: wallpaperUri }}
+        style={styles.bg}
+        resizeMode="cover"
+      >
         <View style={styles.overlay} />
         {content}
       </ImageBackground>
@@ -153,10 +204,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: "hidden",
     marginBottom: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
   logo: { width: 120, height: 120 },

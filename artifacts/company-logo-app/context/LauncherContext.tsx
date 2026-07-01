@@ -9,21 +9,87 @@ export interface AppDef {
   id: string;
   name: string;
   packageName: string;
+  intentAction?: string;
   iconLib: "Feather" | "FontAwesome";
   icon: string;
   color: string;
 }
 
 export const CURATED_APPS: AppDef[] = [
-  { id: "youtube", name: "YouTube", packageName: "com.google.android.youtube", iconLib: "FontAwesome", icon: "youtube-play", color: "#FF0000" },
-  { id: "instagram", name: "Instagram", packageName: "com.instagram.android", iconLib: "FontAwesome", icon: "instagram", color: "#C13584" },
-  { id: "whatsapp", name: "WhatsApp", packageName: "com.whatsapp", iconLib: "FontAwesome", icon: "whatsapp", color: "#25D366" },
-  { id: "chrome", name: "Chrome", packageName: "com.android.chrome", iconLib: "Feather", icon: "globe", color: "#4285F4" },
-  { id: "gmail", name: "Gmail", packageName: "com.google.android.gm", iconLib: "Feather", icon: "mail", color: "#EA4335" },
-  { id: "maps", name: "Maps", packageName: "com.google.android.maps", iconLib: "Feather", icon: "map-pin", color: "#34A853" },
-  { id: "camera", name: "Camera", packageName: "com.android.camera2", iconLib: "Feather", icon: "camera", color: "#607D8B" },
-  { id: "files", name: "Files", packageName: "com.android.documentsui", iconLib: "Feather", icon: "folder", color: "#FF9800" },
-  { id: "settings", name: "Settings", packageName: "com.android.settings", iconLib: "Feather", icon: "settings", color: "#78909C" },
+  {
+    id: "youtube",
+    name: "YouTube",
+    packageName: "com.google.android.youtube",
+    iconLib: "FontAwesome",
+    icon: "youtube-play",
+    color: "#FF0000",
+  },
+  {
+    id: "instagram",
+    name: "Instagram",
+    packageName: "com.instagram.android",
+    iconLib: "FontAwesome",
+    icon: "instagram",
+    color: "#C13584",
+  },
+  {
+    id: "whatsapp",
+    name: "WhatsApp",
+    packageName: "com.whatsapp",
+    iconLib: "FontAwesome",
+    icon: "whatsapp",
+    color: "#25D366",
+  },
+  {
+    id: "chrome",
+    name: "Chrome",
+    packageName: "com.android.chrome",
+    iconLib: "Feather",
+    icon: "globe",
+    color: "#4285F4",
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    packageName: "com.google.android.gm",
+    iconLib: "Feather",
+    icon: "mail",
+    color: "#EA4335",
+  },
+  {
+    id: "maps",
+    name: "Maps",
+    packageName: "com.google.android.apps.maps",
+    iconLib: "Feather",
+    icon: "map-pin",
+    color: "#34A853",
+  },
+  {
+    id: "camera",
+    name: "Camera",
+    packageName: "android.media.action.IMAGE_CAPTURE",
+    intentAction: "android.media.action.IMAGE_CAPTURE",
+    iconLib: "Feather",
+    icon: "camera",
+    color: "#607D8B",
+  },
+  {
+    id: "files",
+    name: "Files",
+    packageName: "com.android.documentsui",
+    iconLib: "Feather",
+    icon: "folder",
+    color: "#FF9800",
+  },
+  {
+    id: "settings",
+    name: "Settings",
+    packageName: "android.settings.SETTINGS",
+    intentAction: "android.settings.SETTINGS",
+    iconLib: "Feather",
+    icon: "settings",
+    color: "#78909C",
+  },
 ];
 
 const DEFAULT_ENABLED = ["youtube", "chrome", "gmail", "camera", "files", "settings"];
@@ -61,7 +127,9 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
         if (storedPin) setPin(storedPin);
         if (storedWallpaper) setWallpaperUri(storedWallpaper);
         if (storedApps) {
-          try { setEnabledAppsState(JSON.parse(storedApps)); } catch {}
+          try {
+            setEnabledAppsState(JSON.parse(storedApps));
+          } catch {}
         }
       })
       .catch(() => {})

@@ -1,0 +1,155 @@
+The launcher is working. Do NOT redesign it or add new features.
+
+Only fix the following issues.
+
+==============================
+1. PORTRAIT MODE
+==============================
+
+The launcher must always open in PORTRAIT mode.
+
+Update app.json:
+
+"orientation": "portrait"
+
+Verify that no screen overrides the orientation.
+
+==============================
+2. APP LAUNCHING
+==============================
+
+The current implementation incorrectly says "App not installed" even though Instagram, YouTube, WhatsApp, Chrome etc. are installed.
+
+Do NOT use Linking.canOpenURL() to determine whether an app is installed.
+
+For Android use explicit package names and Android Intents.
+
+Use these package names:
+
+Instagram:
+com.instagram.android
+
+YouTube:
+com.google.android.youtube
+
+WhatsApp:
+com.whatsapp
+
+Chrome:
+com.android.chrome
+
+Gmail:
+com.google.android.gm
+
+Google Maps:
+com.google.android.apps.maps
+
+Camera:
+android.media.action.IMAGE_CAPTURE
+
+Settings:
+android.settings.SETTINGS
+
+When the user taps an icon:
+
+• Try to launch the application.
+• If launching fails, print the COMPLETE Android error in the console.
+• Only show "App not installed" if the package truly cannot be opened.
+
+Do NOT hide exceptions.
+
+==============================
+3. WALLPAPER
+==============================
+
+The wallpaper feature must work perfectly.
+
+Admin
+→ Enter PIN
+→ Wallpaper
+→ Choose image
+→ Save
+
+Requirements:
+
+• Save image URI in AsyncStorage.
+• Restore wallpaper after restart.
+• Show wallpaper using ImageBackground.
+• Remove wallpaper button.
+• Confirmation before removing.
+
+Do NOT attempt to change Android system wallpaper.
+Only change the launcher background.
+
+==============================
+4. BUTTONS
+==============================
+
+Every button must have a working onPress.
+
+Verify:
+
+• Wallpaper
+• Apps
+• Save
+• Cancel
+• Back
+• Remove Wallpaper
+
+No placeholder handlers.
+
+==============================
+5. DEBUGGING
+==============================
+
+Do NOT guess.
+
+If an app cannot launch:
+
+Print:
+
+- package name
+- intent
+- Android exception
+- stack trace
+
+Do not replace the error with a generic "App not installed."
+
+==============================
+6. KEEP THE APP SIMPLE
+==============================
+
+Do NOT add:
+
+- OTA
+- Device Info
+- Customer Branding
+- Security
+- Kiosk
+- Boot Animation
+- Update Manager
+- Network Monitor
+- Battery Monitor
+- Appearance Settings
+
+Keep ONLY:
+
+✓ Launcher
+✓ PIN
+✓ Wallpaper
+✓ Allowed Apps
+
+==============================
+7. FINAL VALIDATION
+==============================
+
+Before completing:
+
+✓ Test every button
+✓ Verify wallpaper persists after restart
+✓ Verify portrait mode
+✓ Verify app launching
+✓ Verify no runtime errors
+✓ Verify Expo Go compatibility
+
+Only mark the task complete after all tests pass.
