@@ -32,10 +32,10 @@
       ],
       "intentFilters": [
         {
-          "action": "android.intent.action.MAIN",
+          "action": "MAIN",
           "category": [
-            "android.intent.category.HOME",
-            "android.intent.category.DEFAULT"
+            "HOME",
+            "DEFAULT"
           ]
         }
       ]
