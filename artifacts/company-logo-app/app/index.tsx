@@ -37,10 +37,10 @@ const SDK_VERSION: number | string =
   Platform.OS === "android" ? Platform.Version : Platform.OS;
 
 // FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-const LAUNCHER_FLAGS = 0x10000000 | 0x00200000; // 270532608
+const LAUNCHER_FLAGS = 0x10000000 | 0x00200000;
 const LAUNCHER_FLAGS_STR = `0x${LAUNCHER_FLAGS.toString(16).toUpperCase()} (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)`;
 
-// ─── Concurrency guard ────────────────────────────────────────────────────────
+// Module-level concurrency guard — prevents "activity already started" crash
 let isLaunching = false;
 let lastLaunchTime = 0;
 const LAUNCH_DEBOUNCE_MS = 500;
@@ -71,27 +71,16 @@ async function launchApp(app: AppDef): Promise<void> {
   isLaunching = true;
   lastLaunchTime = now;
 
-  // Package-based: packageName alone locks the intent to one specific app —
-  // no "Open with" chooser. Action-based (Camera, Settings): no packageName needed.
+  // Package-based: packageName locks the intent to one specific app (no chooser).
+  // Action-based (Camera, Settings): no packageName needed.
   const action = intentAction ?? "android.intent.action.MAIN";
   const params = isActionIntent
     ? {}
     : { packageName, flags: LAUNCHER_FLAGS };
   const flagsStr = isActionIntent ? "none (action intent)" : LAUNCHER_FLAGS_STR;
 
-  console.log("[OCS] ─────────────────────────────────────────────");
-  console.log(`[OCS] App:         ${name}`);
-  console.log(`[OCS] Package:     ${packageName}`);
-  console.log(`[OCS] Action:      ${action}`);
-  console.log(`[OCS] Flags:       ${flagsStr}`);
-  console.log(`[OCS] Android SDK: API ${SDK_VERSION}`);
-  console.log(`[OCS] Expo:        ${EXPO_VERSION}`);
-  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go" : "Standalone APK"}`);
-  console.log("[OCS] ─────────────────────────────────────────────");
-
   try {
     await IntentLauncher.startActivityAsync(action, params);
-    console.log(`[OCS] ✓ Success: ${name}`);
     addLaunchEntry({
       appName: name,
       packageName,
@@ -105,7 +94,6 @@ async function launchApp(app: AppDef): Promise<void> {
     });
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error(`[OCS] ✗ Failed: ${name} — ${error.message}`);
 
     const isNotInstalled =
       error.message.includes("ActivityNotFoundException") ||
@@ -142,11 +130,7 @@ const CARD_SIZE = (Dimensions.get("window").width - 32 - 24) / 3;
 
 function AppCard({ app }: { app: AppDef }) {
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => launchApp(app)}
-      activeOpacity={0.7}
-    >
+    <TouchableOpacity style={styles.card} onPress={() => launchApp(app)} activeOpacity={0.7}>
       <View style={[styles.cardIconBg, { backgroundColor: app.color + "18" }]}>
         {app.iconLib === "MaterialCommunityIcons" ? (
           <MaterialCommunityIcons name={app.icon as never} size={28} color={app.color} />
@@ -154,9 +138,7 @@ function AppCard({ app }: { app: AppDef }) {
           <MaterialIcons name={app.icon as never} size={28} color={app.color} />
         )}
       </View>
-      <Text style={styles.cardLabel} numberOfLines={1}>
-        {app.name}
-      </Text>
+      <Text style={styles.cardLabel} numberOfLines={1}>{app.name}</Text>
     </TouchableOpacity>
   );
 }
@@ -171,8 +153,7 @@ function useClock() {
 }
 
 export default function HomeScreen() {
-  const { isPinSet, isLoading, wallpaperUri, enabledApps, customApps, setAdminAuthenticated } =
-    useLauncher();
+  const { isPinSet, isLoading, wallpaperUri, enabledApps, setAdminAuthenticated } = useLauncher();
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const now = useClock();
@@ -199,23 +180,17 @@ export default function HomeScreen() {
       }
       return;
     }
-    tapTimer.current = setTimeout(() => {
-      tapCount.current = 0;
-    }, TAP_WINDOW_MS);
+    tapTimer.current = setTimeout(() => { tapCount.current = 0; }, TAP_WINDOW_MS);
   };
 
-  const allApps = [...CURATED_APPS, ...customApps];
-  const visibleApps = allApps.filter((a) => enabledApps.includes(a.id));
+  const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
 
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
-  const timeStr = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
   const content = (
     <SafeAreaView style={styles.safe}>
@@ -223,11 +198,7 @@ export default function HomeScreen() {
       <View style={[styles.inner, Platform.OS === "web" && { paddingTop: 67 }]}>
 
         <View style={styles.heroSection}>
-          <TouchableOpacity
-            onPress={handleLogoTap}
-            activeOpacity={0.9}
-            style={styles.logoTouch}
-          >
+          <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.9} style={styles.logoTouch}>
             <Image
               source={require("../assets/images/ocs-logo.jpg")}
               style={styles.logo}
@@ -237,25 +208,14 @@ export default function HomeScreen() {
           <Text style={[styles.tagline, wallpaperUri && styles.taglineOnWallpaper]}>
             Powering Green Future
           </Text>
-          <Text style={[styles.dateText, wallpaperUri && styles.textOnWallpaper]}>
-            {dateStr}
-          </Text>
-          <Text style={[styles.timeText, wallpaperUri && styles.timeOnWallpaper]}>
-            {timeStr}
-          </Text>
+          <Text style={[styles.dateText, wallpaperUri && styles.textOnWallpaper]}>{dateStr}</Text>
+          <Text style={[styles.timeText, wallpaperUri && styles.timeOnWallpaper]}>{timeStr}</Text>
         </View>
 
         <View style={styles.appsSection}>
-          <Text style={[styles.appsLabel, wallpaperUri && styles.appsLabelOnWallpaper]}>
-            APPS
-          </Text>
-          <ScrollView
-            contentContainerStyle={styles.appsGrid}
-            showsVerticalScrollIndicator={false}
-          >
-            {visibleApps.map((app) => (
-              <AppCard key={app.id} app={app} />
-            ))}
+          <Text style={[styles.appsLabel, wallpaperUri && styles.appsLabelOnWallpaper]}>APPS</Text>
+          <ScrollView contentContainerStyle={styles.appsGrid} showsVerticalScrollIndicator={false}>
+            {visibleApps.map((app) => <AppCard key={app.id} app={app} />)}
             {visibleApps.length === 0 && (
               <Text style={[styles.noApps, wallpaperUri && styles.textOnWallpaper]}>
                 No apps enabled.{"\n"}Tap logo 5× → Admin → Apps.
@@ -283,18 +243,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   bg: { flex: 1 },
   bgLight: { flex: 1, backgroundColor: "#F7F9FC" },
-  wallpaperOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.25)",
-  },
+  wallpaperOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.25)" },
   safe: { flex: 1 },
   inner: { flex: 1 },
 
-  heroSection: {
-    alignItems: "center",
-    paddingTop: 36,
-    paddingBottom: 20,
-  },
+  heroSection: { alignItems: "center", paddingTop: 36, paddingBottom: 20 },
   logoTouch: {
     width: 110,
     height: 110,
@@ -321,17 +274,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
   },
-  dateText: {
-    color: "#1F2937",
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 2,
-  },
-  timeText: {
-    color: "#6B7280",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
+  dateText: { color: "#1F2937", fontSize: 15, fontFamily: "Inter_500Medium", marginBottom: 2 },
+  timeText: { color: "#6B7280", fontSize: 13, fontFamily: "Inter_400Regular" },
   textOnWallpaper: {
     color: "#1F2937",
     textShadowColor: "rgba(255,255,255,0.7)",
@@ -354,12 +298,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   appsLabelOnWallpaper: { color: "#374151" },
-  appsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    paddingBottom: 24,
-  },
+  appsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingBottom: 24 },
 
   card: {
     width: CARD_SIZE,
@@ -375,19 +314,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
-  cardIconBg: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardLabel: {
-    color: "#1F2937",
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-  },
+  cardIconBg: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  cardLabel: { color: "#1F2937", fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
 
   noApps: {
     color: "#6B7280",

@@ -24,14 +24,6 @@ const MENU = [
     sub: "Choose which apps appear on the home screen",
     color: "#1A4A2A",
   },
-  {
-    id: "debug",
-    route: "/admin/debug",
-    icon: "terminal",
-    label: "Developer Debug",
-    sub: "App launch log with status and error details",
-    color: "#3A2A5A",
-  },
 ];
 
 export default function AdminScreen() {
@@ -114,13 +106,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.07)",
   },
-  iconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconBox: { width: 46, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   rowText: { flex: 1 },
   rowLabel: { color: "#FFFFFF", fontSize: 16, fontFamily: "Inter_500Medium", marginBottom: 2 },
   rowSub: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Inter_400Regular" },
