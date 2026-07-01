@@ -34,10 +34,13 @@ function useBattery() {
     if (Platform.OS === "web") return;
     Battery.getBatteryLevelAsync().then((l) => setLevel(Math.round(l * 100))).catch(() => {});
     Battery.getBatteryStateAsync().then((s) => setCharging(s === Battery.BatteryState.CHARGING)).catch(() => {});
-    const sub = Battery.addBatteryLevelListener(({ batteryLevel }) =>
-      setLevel(Math.round(batteryLevel * 100))
-    );
-    return () => sub.remove();
+    let sub: { remove: () => void } | null = null;
+    try {
+      sub = Battery.addBatteryLevelListener(({ batteryLevel }) =>
+        setLevel(Math.round(batteryLevel * 100))
+      );
+    } catch {}
+    return () => { try { sub?.remove(); } catch {} };
   }, []);
   return { level, charging };
 }
