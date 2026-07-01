@@ -1,6 +1,6 @@
 import { CURATED_APPS, type AppDef, useLauncher } from "@/context/LauncherContext";
 import { addLaunchEntry } from "@/utils/launchLog";
-import { Feather, FontAwesome } from "@expo/vector-icons";
+import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -26,8 +26,7 @@ const TAP_WINDOW_MS = 2500;
 
 const IS_EXPO_GO =
   (Constants.appOwnership as string | null) === "expo" ||
-  (Constants as unknown as Record<string, string>).executionEnvironment ===
-    "storeClient";
+  (Constants as unknown as Record<string, string>).executionEnvironment === "storeClient";
 
 const EXPO_VERSION: string =
   (Constants as unknown as Record<string, string>).expoVersion ??
@@ -36,6 +35,11 @@ const EXPO_VERSION: string =
 
 const SDK_VERSION: number | string =
   Platform.OS === "android" ? Platform.Version : Platform.OS;
+
+// Equivalent of PackageManager.getLaunchIntentForPackage():
+//   ACTION_MAIN + CATEGORY_LAUNCHER + FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+const LAUNCHER_FLAGS = 0x10000000 | 0x00200000; // 270532608
+const LAUNCHER_FLAGS_STR = `0x${LAUNCHER_FLAGS.toString(16).toUpperCase()} (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)`;
 
 async function launchApp(app: AppDef): Promise<void> {
   const { name, packageName, intentAction } = app;
@@ -46,7 +50,7 @@ async function launchApp(app: AppDef): Promise<void> {
       appName: name,
       packageName,
       intent: intentAction ?? "android.intent.action.MAIN",
-      flags: "none",
+      flags: "none (non-Android)",
       status: "skipped",
       sdkVersion: SDK_VERSION,
       expoVersion: EXPO_VERSION,
@@ -56,23 +60,32 @@ async function launchApp(app: AppDef): Promise<void> {
     return;
   }
 
+  // Action-based intents (Camera, Settings) don't need packageName or LAUNCHER flags
+  const isActionIntent = !!intentAction;
   const action = intentAction ?? "android.intent.action.MAIN";
-  const params = intentAction ? {} : { packageName };
-  const flagsStr = "none (default)";
+  const params = isActionIntent
+    ? {}
+    : {
+        packageName,
+        flags: LAUNCHER_FLAGS,
+        category: "android.intent.category.LAUNCHER",
+      };
+  const flagsStr = isActionIntent ? "none (action intent)" : LAUNCHER_FLAGS_STR;
 
   console.log("[OCS] ─────────────────────────────────────────────");
   console.log(`[OCS] App:         ${name}`);
   console.log(`[OCS] Package:     ${packageName}`);
   console.log(`[OCS] Action:      ${action}`);
+  console.log(`[OCS] Category:    ${isActionIntent ? "n/a" : "android.intent.category.LAUNCHER"}`);
   console.log(`[OCS] Flags:       ${flagsStr}`);
   console.log(`[OCS] Android SDK: API ${SDK_VERSION}`);
   console.log(`[OCS] Expo:        ${EXPO_VERSION}`);
-  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠ (intents may be restricted)" : "Standalone APK"}`);
+  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠ (some intents restricted)" : "Standalone APK"}`);
   console.log("[OCS] ─────────────────────────────────────────────");
 
   try {
     await IntentLauncher.startActivityAsync(action, params);
-    console.log(`[OCS] ✓ Launch success: ${name}`);
+    console.log(`[OCS] ✓ Success: ${name}`);
     addLaunchEntry({
       appName: name,
       packageName,
@@ -90,6 +103,7 @@ async function launchApp(app: AppDef): Promise<void> {
     console.error(`[OCS] App:         ${name}`);
     console.error(`[OCS] Package:     ${packageName}`);
     console.error(`[OCS] Action:      ${action}`);
+    console.error(`[OCS] Category:    ${isActionIntent ? "n/a" : "android.intent.category.LAUNCHER"}`);
     console.error(`[OCS] Flags:       ${flagsStr}`);
     console.error(`[OCS] Android SDK: API ${SDK_VERSION}`);
     console.error(`[OCS] Expo:        ${EXPO_VERSION}`);
@@ -112,10 +126,7 @@ async function launchApp(app: AppDef): Promise<void> {
       timestamp: new Date().toISOString(),
     });
 
-    Alert.alert(
-      "Launch failed",
-      `${name} could not be opened.\n\n${error.message}`
-    );
+    Alert.alert("Launch failed", `${name} could not be opened.\n\n${error.message}`);
   }
 }
 
@@ -129,10 +140,10 @@ function AppCard({ app }: { app: AppDef }) {
       activeOpacity={0.7}
     >
       <View style={[styles.cardIconBg, { backgroundColor: app.color + "18" }]}>
-        {app.iconLib === "FontAwesome" ? (
-          <FontAwesome name={app.icon as never} size={28} color={app.color} />
+        {app.iconLib === "MaterialCommunityIcons" ? (
+          <MaterialCommunityIcons name={app.icon as never} size={28} color={app.color} />
         ) : (
-          <Feather name={app.icon as never} size={28} color={app.color} />
+          <MaterialIcons name={app.icon as never} size={28} color={app.color} />
         )}
       </View>
       <Text style={styles.cardLabel} numberOfLines={1}>
@@ -217,10 +228,10 @@ export default function HomeScreen() {
           <Text style={[styles.tagline, wallpaperUri && styles.taglineOnWallpaper]}>
             Powering Green Future
           </Text>
-          <Text style={[styles.dateText, wallpaperUri && styles.lightText]}>
+          <Text style={[styles.dateText, wallpaperUri && styles.textOnWallpaper]}>
             {dateStr}
           </Text>
-          <Text style={[styles.timeText, wallpaperUri && styles.lightText]}>
+          <Text style={[styles.timeText, wallpaperUri && styles.timeOnWallpaper]}>
             {timeStr}
           </Text>
         </View>
@@ -237,7 +248,7 @@ export default function HomeScreen() {
               <AppCard key={app.id} app={app} />
             ))}
             {visibleApps.length === 0 && (
-              <Text style={[styles.noApps, wallpaperUri && styles.lightText]}>
+              <Text style={[styles.noApps, wallpaperUri && styles.textOnWallpaper]}>
                 No apps enabled.{"\n"}Tap logo 5× → Admin → Apps.
               </Text>
             )}
@@ -250,11 +261,7 @@ export default function HomeScreen() {
 
   if (wallpaperUri) {
     return (
-      <ImageBackground
-        source={{ uri: wallpaperUri }}
-        style={styles.bg}
-        resizeMode="cover"
-      >
+      <ImageBackground source={{ uri: wallpaperUri }} style={styles.bg} resizeMode="cover">
         <View style={styles.wallpaperOverlay} />
         {content}
       </ImageBackground>
@@ -301,7 +308,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   taglineOnWallpaper: {
-    color: "#0E9F6E",
     textShadowColor: "rgba(255,255,255,0.8)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
@@ -317,8 +323,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
   },
-  lightText: {
+  textOnWallpaper: {
     color: "#1F2937",
+    textShadowColor: "rgba(255,255,255,0.7)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
+  timeOnWallpaper: {
+    color: "#374151",
     textShadowColor: "rgba(255,255,255,0.7)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
@@ -332,9 +344,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     marginBottom: 12,
   },
-  appsLabelOnWallpaper: {
-    color: "#1F2937",
-  },
+  appsLabelOnWallpaper: { color: "#374151" },
   appsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -10,7 +10,7 @@ export interface AppDef {
   name: string;
   packageName: string;
   intentAction?: string;
-  iconLib: "Feather" | "FontAwesome";
+  iconLib: "MaterialIcons" | "MaterialCommunityIcons";
   icon: string;
   color: string;
 }
@@ -20,23 +20,23 @@ export const CURATED_APPS: AppDef[] = [
     id: "youtube",
     name: "YouTube",
     packageName: "com.google.android.youtube",
-    iconLib: "FontAwesome",
-    icon: "youtube-play",
+    iconLib: "MaterialIcons",
+    icon: "play-circle",
     color: "#FF0000",
   },
   {
     id: "instagram",
     name: "Instagram",
     packageName: "com.instagram.android",
-    iconLib: "FontAwesome",
-    icon: "instagram",
+    iconLib: "MaterialIcons",
+    icon: "camera",
     color: "#C13584",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
     packageName: "com.whatsapp",
-    iconLib: "FontAwesome",
+    iconLib: "MaterialCommunityIcons",
     icon: "whatsapp",
     color: "#25D366",
   },
@@ -44,24 +44,24 @@ export const CURATED_APPS: AppDef[] = [
     id: "chrome",
     name: "Chrome",
     packageName: "com.android.chrome",
-    iconLib: "Feather",
-    icon: "globe",
+    iconLib: "MaterialIcons",
+    icon: "language",
     color: "#4285F4",
   },
   {
     id: "gmail",
     name: "Gmail",
     packageName: "com.google.android.gm",
-    iconLib: "Feather",
-    icon: "mail",
+    iconLib: "MaterialIcons",
+    icon: "email",
     color: "#EA4335",
   },
   {
     id: "maps",
     name: "Maps",
     packageName: "com.google.android.apps.maps",
-    iconLib: "Feather",
-    icon: "map-pin",
+    iconLib: "MaterialIcons",
+    icon: "map",
     color: "#34A853",
   },
   {
@@ -69,15 +69,15 @@ export const CURATED_APPS: AppDef[] = [
     name: "Camera",
     packageName: "android.media.action.IMAGE_CAPTURE",
     intentAction: "android.media.action.IMAGE_CAPTURE",
-    iconLib: "Feather",
-    icon: "camera",
+    iconLib: "MaterialIcons",
+    icon: "photo-camera",
     color: "#607D8B",
   },
   {
     id: "files",
     name: "Files",
     packageName: "com.android.documentsui",
-    iconLib: "Feather",
+    iconLib: "MaterialIcons",
     icon: "folder",
     color: "#FF9800",
   },
@@ -86,7 +86,7 @@ export const CURATED_APPS: AppDef[] = [
     name: "Settings",
     packageName: "android.settings.SETTINGS",
     intentAction: "android.settings.SETTINGS",
-    iconLib: "Feather",
+    iconLib: "MaterialIcons",
     icon: "settings",
     color: "#78909C",
   },
