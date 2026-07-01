@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Company Logo App"
+version = "1.0.0"
+id = "artifacts/company-logo-app"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 25902
+
+[services.development]
+run = "pnpm --filter @workspace/company-logo-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/company-logo-app", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/company-logo-app", "run", "serve" ]
+
+[services.env]
+PORT = "25902"
+BASE_PATH = "/"

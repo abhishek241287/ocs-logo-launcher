@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "ZupBLZKyEtLMJ4zoVHfiO"
+uri = "file://artifacts/company-logo-app/assets/images/logo.png"
+type = "image"
+title = "company logo placeholder"
+
+[[generated]]
+id = "oZmCJd1A8f7K1ZLn4MsUe"
+uri = "file://artifacts/company-logo-app/assets/images/icon.png"
+type = "image"
+title = "company app icon"
