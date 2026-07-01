@@ -4,12 +4,12 @@
     "slug": "company-logo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/ocs-logo.jpg",
+    "icon": "./assets/images/ocs-logo.png",
     "scheme": "ocsoorja",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/ocs-logo.jpg",
+      "image": "./assets/images/ocs-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#F7F9FC"
     },
