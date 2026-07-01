@@ -1,0 +1,1 @@
+- [OCS OORJA Launcher architecture](ocs-launcher-arch.md) — LauncherContext replaces AppContext; all admin routes require isAdminAuthenticated; 6-digit PIN via pin-entry/pin-setup.

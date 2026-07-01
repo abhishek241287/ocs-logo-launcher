@@ -1,0 +1,90 @@
+Build a professional Android Launcher called OCS OORJA Launcher using React Native (Expo if possible, or native Android if required for launcher functionality).
+
+The launcher should replace the default Android home screen on Lenovo Android tablets.
+
+Branding
+Display the OCS OORJA logo at the top.
+Use an OCS OORJA wallpaper.
+Green and white theme.
+Show company name "OCS OORJA".
+Show date, time, Wi-Fi, and battery.
+Home Screen
+
+Display only approved apps.
+
+Default icons:
+
+OCS One ERP
+Camera
+Files
+Calculator
+Settings (hidden behind PIN)
+
+Do not display other installed apps unless enabled by the administrator.
+
+PIN-Protected Admin Mode
+
+Long-press the logo for 3 seconds.
+
+Ask for a 6-digit PIN.
+
+After the correct PIN, open the Admin Panel.
+
+Admin Panel Features
+Change Home Screen wallpaper.
+Change Lock Screen wallpaper (where Android permissions allow).
+Change company logo.
+Change launcher background color.
+Add or remove visible apps.
+Change PIN.
+Restart launcher.
+Enable or disable Kiosk Mode.
+Export configuration.
+Import configuration.
+Security
+Normal users cannot change wallpaper.
+Normal users cannot uninstall the launcher.
+Normal users cannot open Android launcher settings.
+Home button always returns to OCS OORJA Launcher.
+Boot Behaviour
+
+After device reboot:
+
+Launcher starts automatically.
+Display OCS OORJA branding.
+Restore previous wallpaper and settings.
+Kiosk Mode
+
+Optional switch:
+
+Lock tablet to approved apps.
+Disable Recent Apps.
+Prevent accidental exit.
+Settings
+
+Store all configuration locally using persistent storage.
+
+Future Ready
+
+Design the project to support:
+
+Remote configuration
+OTA updates
+Device registration
+Cloud synchronization
+
+The code should be modular, production-ready, and well documented.
+
+One recommendation
+
+Instead of calling it OCS OORJA Launcher, I'd give it a product name, for example:
+
+OCS Shell
+OCS Desk
+OCS Hub
+OCS Home
+OCS Workspace
+
+Then customers see "Powered by OCS OORJA", making it feel like your own operating environment rather than just a launcher.
+
+As your product line grows (ERP, batteries, inverters, EV chargers, service tools), the same launcher can become the common interface across all OCS OORJA devices.

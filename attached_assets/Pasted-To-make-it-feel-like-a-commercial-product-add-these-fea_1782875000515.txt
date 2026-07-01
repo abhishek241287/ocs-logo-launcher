@@ -1,0 +1,107 @@
+To make it feel like a commercial product, add these features:
+
+1. Make it the default launcher
+
+When Home is pressed:
+
+Always return to OCS OORJA Launcher.
+Ask the user once to set it as the default Home app.
+2. App hiding
+
+Admin should be able to:
+
+Hide Chrome
+Hide Gmail
+Hide Play Store
+Hide YouTube
+Hide Photos
+Hide every app except those you approve
+3. Admin Mode
+
+Instead of showing a hint like:
+
+Hold logo 3s for admin
+
+Hide it completely.
+
+Use a secret gesture, for example:
+
+Tap the logo 5 times, or
+Long press for 5 seconds.
+
+Then prompt for the PIN.
+
+4. Branding
+
+Add:
+
+OCS OORJA boot animation inside the launcher.
+Animated logo.
+"Powered by OCS OORJA" at the bottom.
+Company version number.
+5. Lock Screen
+
+Show:
+
+OCS OORJA logo.
+Device name.
+Customer name.
+Support number.
+6. OTA Updates
+
+Admin panel should include:
+
+Check for updates.
+Download updates.
+Install updates.
+7. Remote Control (future)
+
+When connected to your server:
+
+Push new wallpapers.
+Push new logos.
+Push configuration changes.
+Enable/disable apps remotely.
+8. Device Information
+
+Display:
+
+Model
+Android version
+IMEI (where Android permissions and APIs allow)
+Serial number (where available)
+Battery health (limited by Android support)
+Storage
+RAM
+Wi-Fi MAC (subject to Android privacy restrictions)
+App version
+9. Factory Reset Protection
+
+Only after entering the admin PIN should users be able to:
+
+Exit launcher.
+Open Android Settings.
+Factory reset from within the launcher.
+10. Customer Branding
+
+Allow each customer to have:
+
+Their own logo.
+Their own wallpaper.
+Their own company name.
+
+For example:
+
+OCS OORJA
+Installed for:
+
+ABC Textiles Pvt Ltd
+
+Powered by OCS OORJA
+Overall assessment
+
+I'd rate this 8.5/10 as an enterprise launcher.
+
+With the enhancements above—especially making it the default launcher, hiding consumer apps, strengthening the admin experience, and adding update capabilities—it would be close to a 9.8/10 commercial solution suitable for deployment on customer tablets.
+
+One additional suggestion: since you're already developing OCS One, consider merging the launcher and ERP into a single APK. The launcher becomes the branded home environment, and OCS One is integrated within it. Customers would perceive the tablet as a dedicated OCS OORJA device rather than a standard Android tablet with an app installed.

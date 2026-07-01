@@ -1,23 +1,48 @@
 {
   "expo": {
-    "name": "Company Logo",
+    "name": "OCS OORJA Launcher",
     "slug": "company-logo-app",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
-    "scheme": "company-logo-app",
+    "scheme": "ocsoorja",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#060910"
+      "backgroundColor": "#071A0A"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": true,
+      "bundleIdentifier": "in.ocs.oorja.launcher"
     },
     "android": {
-      "backgroundColor": "#060910"
+      "package": "in.ocs.oorja.launcher",
+      "backgroundColor": "#071A0A",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#071A0A"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SET_WALLPAPER",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.BATTERY_STATS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.intent.action.MAIN",
+          "category": [
+            "android.intent.category.HOME",
+            "android.intent.category.DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -30,7 +55,22 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow OCS OORJA Launcher to access your photos.",
+          "savePhotosPermission": "Allow OCS OORJA Launcher to save wallpaper photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow OCS OORJA Launcher to access your photos to set wallpaper and logo."
+        }
+      ],
+      "react-native-keyboard-controller"
     ],
     "experiments": {
       "typedRoutes": true,
