@@ -1,2 +1,3 @@
 - [OCS OORJA Launcher architecture](ocs-launcher-arch.md) — LauncherContext replaces AppContext; all admin routes require isAdminAuthenticated; 6-digit PIN via pin-entry/pin-setup.
 - [Expo app.json plugin rules](expo-apjson-plugin-rules.md) — Never add a package to plugins[] without confirming it ships an Expo config plugin; always validate JSON after editing app.json.
+- [GitHub auto-push setup](github-autopush.md) — Repo: abhishek241287/ocs-logo-launcher. Push after every code change session using the token + remote pattern.
