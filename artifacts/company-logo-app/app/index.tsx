@@ -36,14 +36,26 @@ const EXPO_VERSION: string =
 const SDK_VERSION: number | string =
   Platform.OS === "android" ? Platform.Version : Platform.OS;
 
-// Equivalent of PackageManager.getLaunchIntentForPackage():
-//   ACTION_MAIN + CATEGORY_LAUNCHER + FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+// FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
 const LAUNCHER_FLAGS = 0x10000000 | 0x00200000; // 270532608
 const LAUNCHER_FLAGS_STR = `0x${LAUNCHER_FLAGS.toString(16).toUpperCase()} (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)`;
 
-async function launchApp(app: AppDef): Promise<void> {
-  const { name, packageName, intentAction } = app;
+// ─── Concurrency guard ────────────────────────────────────────────────────────
+// Prevents "IntentLauncher activity is already started" crash.
+// Module-level so it persists across re-renders.
+let isLaunching = false;
+let lastLaunchTime = 0;
+const LAUNCH_DEBOUNCE_MS = 500;
 
+async function launchApp(app: AppDef): Promise<void> {
+  // ── Debounce + concurrency guard ──────────────────────────────────────────
+  const now = Date.now();
+  if (isLaunching || now - lastLaunchTime < LAUNCH_DEBOUNCE_MS) return;
+
+  const { name, packageName, intentAction } = app;
+  const isActionIntent = !!intentAction;
+
+  // ── Non-Android ───────────────────────────────────────────────────────────
   if (Platform.OS !== "android") {
     Alert.alert("Android only", "App launching works only on an Android device.");
     addLaunchEntry({
@@ -60,27 +72,50 @@ async function launchApp(app: AppDef): Promise<void> {
     return;
   }
 
-  // Action-based intents (Camera, Settings) don't need packageName or LAUNCHER flags
-  const isActionIntent = !!intentAction;
+  // ── Expo Go limitation for package-based apps ─────────────────────────────
+  // Expo Go cannot call PackageManager.getLaunchIntentForPackage() — any
+  // package-based implicit intent may still trigger the "Open with" chooser
+  // or a SecurityException. Action-based intents (Camera, Settings) still work.
+  if (IS_EXPO_GO && !isActionIntent) {
+    Alert.alert(
+      "Expo Go Limitation",
+      "Direct app launching is limited in Expo Go.\nThis feature will work correctly in the standalone APK."
+    );
+    addLaunchEntry({
+      appName: name,
+      packageName,
+      intent: "android.intent.action.MAIN",
+      flags: LAUNCHER_FLAGS_STR,
+      status: "skipped (Expo Go limitation)",
+      sdkVersion: SDK_VERSION,
+      expoVersion: EXPO_VERSION,
+      isExpoGo: true,
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // ── Lock ──────────────────────────────────────────────────────────────────
+  isLaunching = true;
+  lastLaunchTime = now;
+
+  // For package-based apps: packageName alone restricts the intent to that app
+  // (equivalent to intent.setPackage(packageName)) — no category added so
+  // Android never shows the "Open with" chooser.
   const action = intentAction ?? "android.intent.action.MAIN";
   const params = isActionIntent
     ? {}
-    : {
-        packageName,
-        flags: LAUNCHER_FLAGS,
-        category: "android.intent.category.LAUNCHER",
-      };
+    : { packageName, flags: LAUNCHER_FLAGS };
   const flagsStr = isActionIntent ? "none (action intent)" : LAUNCHER_FLAGS_STR;
 
   console.log("[OCS] ─────────────────────────────────────────────");
   console.log(`[OCS] App:         ${name}`);
   console.log(`[OCS] Package:     ${packageName}`);
   console.log(`[OCS] Action:      ${action}`);
-  console.log(`[OCS] Category:    ${isActionIntent ? "n/a" : "android.intent.category.LAUNCHER"}`);
   console.log(`[OCS] Flags:       ${flagsStr}`);
   console.log(`[OCS] Android SDK: API ${SDK_VERSION}`);
   console.log(`[OCS] Expo:        ${EXPO_VERSION}`);
-  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠ (some intents restricted)" : "Standalone APK"}`);
+  console.log(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠" : "Standalone APK"}`);
   console.log("[OCS] ─────────────────────────────────────────────");
 
   try {
@@ -103,11 +138,7 @@ async function launchApp(app: AppDef): Promise<void> {
     console.error(`[OCS] App:         ${name}`);
     console.error(`[OCS] Package:     ${packageName}`);
     console.error(`[OCS] Action:      ${action}`);
-    console.error(`[OCS] Category:    ${isActionIntent ? "n/a" : "android.intent.category.LAUNCHER"}`);
     console.error(`[OCS] Flags:       ${flagsStr}`);
-    console.error(`[OCS] Android SDK: API ${SDK_VERSION}`);
-    console.error(`[OCS] Expo:        ${EXPO_VERSION}`);
-    console.error(`[OCS] Context:     ${IS_EXPO_GO ? "Expo Go ⚠" : "Standalone APK"}`);
     console.error(`[OCS] Error:       ${error.message}`);
     console.error(`[OCS] Stack:       ${error.stack ?? "unavailable"}`);
     console.error("[OCS] ═══════════════════════════════════════");
@@ -127,6 +158,9 @@ async function launchApp(app: AppDef): Promise<void> {
     });
 
     Alert.alert("Launch failed", `${name} could not be opened.\n\n${error.message}`);
+  } finally {
+    // Always release the lock so subsequent launches work
+    isLaunching = false;
   }
 }
 
@@ -171,6 +205,8 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // When the home screen regains focus (user returned from launched app),
+      // the module-level lock is already released in the finally block above.
       setAdminAuthenticated(false);
     }, [setAdminAuthenticated])
   );
