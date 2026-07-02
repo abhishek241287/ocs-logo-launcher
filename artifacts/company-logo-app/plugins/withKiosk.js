@@ -87,6 +87,8 @@ import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.view.View;
 
 import com.facebook.react.bridge.Promise;
@@ -143,8 +145,15 @@ public class KioskModule extends ReactContextBaseJavaModule {
     // -----------------------------------------------------------------------
 
     /**
-     * Set lock-task packages (Device Owner only) and start lock task.
-     * packages — list of additional package names to whitelist beyond our own.
+     * Start kiosk mode.
+     *
+     * Device Owner: whitelists allowed packages via setLockTaskPackages() then
+     *               calls startLockTask() for full lock-task enforcement.
+     * Non-DO:       applies immersive mode only — startLockTask() is intentionally
+     *               skipped because screen-pinning (non-DO lock task) prevents the
+     *               launcher from starting activities in other tasks, which breaks
+     *               every app tap. Immersive mode alone gives the desired
+     *               full-screen appearance without blocking app launches.
      */
     @ReactMethod
     public void startKioskMode(ReadableArray packages, Promise promise) {
@@ -159,7 +168,9 @@ public class KioskModule extends ReactContextBaseJavaModule {
             DevicePolicyManager dpm =
                 (DevicePolicyManager) ctx.getSystemService(Context.DEVICE_POLICY_SERVICE);
 
-            if (dpm != null && dpm.isDeviceOwnerApp(ctx.getPackageName())) {
+            final boolean isDeviceOwner = dpm != null && dpm.isDeviceOwnerApp(ctx.getPackageName());
+
+            if (isDeviceOwner) {
                 ComponentName admin =
                     new ComponentName(ctx, KioskAdminReceiver.class);
 
@@ -176,15 +187,51 @@ public class KioskModule extends ReactContextBaseJavaModule {
 
             activity.runOnUiThread(() -> {
                 try {
-                    activity.startLockTask();
                     applyImmersiveMode(activity);
-                    promise.resolve(true);
+                    if (isDeviceOwner) {
+                        activity.startLockTask();
+                    }
+                    promise.resolve(isDeviceOwner);
                 } catch (Exception e) {
                     promise.reject("E_LOCK_TASK", e.getMessage());
                 }
             });
         } catch (Exception e) {
             promise.reject("E_KIOSK", e.getMessage());
+        }
+    }
+
+    /**
+     * Launch an app by package name.
+     *
+     * Uses PackageManager.getLaunchIntentForPackage() — the Android-recommended
+     * way to start an installed app's main launcher activity. Prefers the current
+     * Activity context so the intent resolves correctly without requiring a new
+     * task stack entry in restricted modes.
+     */
+    @ReactMethod
+    public void launchApp(String packageName, Promise promise) {
+        try {
+            Context ctx = getReactApplicationContext();
+            PackageManager pm = ctx.getPackageManager();
+            Intent intent = pm.getLaunchIntentForPackage(packageName);
+
+            if (intent == null) {
+                promise.reject("E_NOT_INSTALLED", "No launch intent for package: " + packageName);
+                return;
+            }
+
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+
+            final Activity activity = getCurrentActivity();
+            if (activity != null) {
+                activity.startActivity(intent);
+            } else {
+                ctx.startActivity(intent);
+            }
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("E_LAUNCH", e.getMessage());
         }
     }
 
