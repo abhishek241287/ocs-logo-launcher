@@ -4,18 +4,19 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 const PIN_KEY = "@ocs:pin";
 const WALLPAPER_KEY = "@ocs:wallpaper";
 const APPS_KEY = "@ocs:enabled_apps";
+const KIOSK_KEY = "@ocs:kiosk_enabled";
 
 export interface AppDef {
   id: string;
   name: string;
   /**
    * Android package name for package-based launches.
-   * Leave empty string for pure action-based intents (Camera, Settings).
+   * Empty string for pure action-based intents (Camera, Settings).
    */
   packageName: string;
   /**
-   * When set, this action is used directly (no package restriction).
-   * Used for system intents like Camera and Settings.
+   * When set, this action is fired directly with no package restriction.
+   * Used for Camera (STILL_IMAGE_CAMERA) and Settings (android.settings.SETTINGS).
    */
   intentAction?: string;
   iconLib: "MaterialIcons" | "MaterialCommunityIcons";
@@ -39,6 +40,14 @@ export const CURATED_APPS: AppDef[] = [
     iconLib: "MaterialIcons",
     icon: "camera",
     color: "#C13584",
+  },
+  {
+    id: "facebook",
+    name: "Facebook",
+    packageName: "com.facebook.katana",
+    iconLib: "MaterialCommunityIcons",
+    icon: "facebook",
+    color: "#1877F2",
   },
   {
     id: "whatsapp",
@@ -75,10 +84,6 @@ export const CURATED_APPS: AppDef[] = [
   {
     id: "camera",
     name: "Camera",
-    // No package restriction — system resolves the default camera app.
-    // STILL_IMAGE_CAMERA opens the viewfinder; it does NOT expect a result
-    // back and will NOT route to Google Play if no explicit handler exists
-    // (unlike IMAGE_CAPTURE which can trigger Play Store on unconfigured devices).
     packageName: "",
     intentAction: "android.media.action.STILL_IMAGE_CAMERA",
     iconLib: "MaterialIcons",
@@ -93,18 +98,11 @@ export const CURATED_APPS: AppDef[] = [
     icon: "folder",
     color: "#FF9800",
   },
-  {
-    id: "settings",
-    name: "Settings",
-    packageName: "",
-    intentAction: "android.settings.SETTINGS",
-    iconLib: "MaterialIcons",
-    icon: "settings",
-    color: "#78909C",
-  },
 ];
 
-const DEFAULT_ENABLED = ["youtube", "chrome", "gmail", "camera", "files", "settings"];
+// Default allowed apps — Settings excluded in kiosk mode per requirements.
+// Admin can re-enable any app via the Allowed Apps panel.
+const DEFAULT_ENABLED = ["youtube", "chrome", "gmail", "camera", "files"];
 
 interface LauncherContextType {
   pin: string | null;
@@ -112,12 +110,15 @@ interface LauncherContextType {
   isAdminAuthenticated: boolean;
   wallpaperUri: string | null;
   enabledApps: string[];
+  /** Whether kiosk mode should be active (persisted; toggled by admin). */
+  isKioskEnabled: boolean;
   isLoading: boolean;
   setupPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => boolean;
   setAdminAuthenticated: (value: boolean) => void;
   setWallpaper: (uri: string | null) => Promise<void>;
   setEnabledApps: (ids: string[]) => Promise<void>;
+  setKioskEnabled: (val: boolean) => Promise<void>;
 }
 
 const LauncherContext = createContext<LauncherContextType | null>(null);
@@ -127,6 +128,7 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [wallpaperUri, setWallpaperUri] = useState<string | null>(null);
   const [enabledApps, setEnabledAppsState] = useState<string[]>(DEFAULT_ENABLED);
+  const [isKioskEnabled, setIsKioskEnabledState] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -134,12 +136,17 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.getItem(PIN_KEY),
       AsyncStorage.getItem(WALLPAPER_KEY),
       AsyncStorage.getItem(APPS_KEY),
+      AsyncStorage.getItem(KIOSK_KEY),
     ])
-      .then(([storedPin, storedWallpaper, storedApps]) => {
+      .then(([storedPin, storedWallpaper, storedApps, storedKiosk]) => {
         if (storedPin) setPin(storedPin);
         if (storedWallpaper) setWallpaperUri(storedWallpaper);
         if (storedApps) {
           try { setEnabledAppsState(JSON.parse(storedApps)); } catch {}
+        }
+        // Default kiosk to ON; only false if admin explicitly disabled it.
+        if (storedKiosk !== null) {
+          setIsKioskEnabledState(storedKiosk === "true");
         }
       })
       .catch(() => {})
@@ -171,6 +178,11 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
     setEnabledAppsState(ids);
   }, []);
 
+  const setKioskEnabled = useCallback(async (val: boolean) => {
+    await AsyncStorage.setItem(KIOSK_KEY, String(val));
+    setIsKioskEnabledState(val);
+  }, []);
+
   return (
     <LauncherContext.Provider
       value={{
@@ -179,12 +191,14 @@ export function LauncherProvider({ children }: { children: React.ReactNode }) {
         isAdminAuthenticated,
         wallpaperUri,
         enabledApps,
+        isKioskEnabled,
         isLoading,
         setupPin,
         verifyPin,
         setAdminAuthenticated,
         setWallpaper,
         setEnabledApps,
+        setKioskEnabled,
       }}
     >
       {children}
