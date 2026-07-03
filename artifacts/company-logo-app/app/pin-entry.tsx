@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
@@ -33,6 +33,13 @@ export default function PinEntryScreen() {
   const [error, setError] = useState("");
   const [attempts, setAttempts] = useState(0);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const verifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (verifyTimerRef.current) clearTimeout(verifyTimerRef.current);
+    };
+  }, []);
 
   const shake = () => {
     Animated.sequence([
@@ -58,7 +65,8 @@ export default function PinEntryScreen() {
     setInput(next);
 
     if (next.length === PIN_LENGTH) {
-      setTimeout(() => {
+      verifyTimerRef.current = setTimeout(() => {
+        verifyTimerRef.current = null;
         if (verifyPin(next)) {
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setAdminAuthenticated(true);
