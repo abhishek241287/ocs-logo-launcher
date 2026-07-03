@@ -233,6 +233,7 @@ export default function HomeScreen() {
 
   const tapTimestamps = useRef<number[]>([]);
   const isNavigatingToAdmin = useRef(false);
+  const pendingAdminNav = useRef(false);
   const now = useClock();
 
   // -------------------------------------------------------------------------
@@ -279,6 +280,7 @@ export default function HomeScreen() {
       // clear the navigation debounce and any stale taps so the gesture
       // works again immediately.
       isNavigatingToAdmin.current = false;
+      pendingAdminNav.current = false;
       tapTimestamps.current = [];
       if (isKioskEnabled) {
         kiosk.enableImmersiveMode().catch(() => {});
@@ -313,11 +315,26 @@ export default function HomeScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
-      if (!isLoading) {
+      if (isLoading) {
+        // Context data (PIN / kiosk state) hasn't finished loading from
+        // AsyncStorage yet — defer the navigation instead of dropping it.
+        // The effect below fires it as soon as loading completes, so a fast
+        // cold-start tap burst is never silently swallowed or left stuck.
+        pendingAdminNav.current = true;
+      } else {
         router.push(isPinSet ? "/pin-entry" : "/pin-setup");
       }
     }
   };
+
+  // Fires a deferred admin navigation (see handleLogoTap) once loading
+  // finishes, and resets the debounce if it doesn't fire.
+  useEffect(() => {
+    if (!isLoading && pendingAdminNav.current) {
+      pendingAdminNav.current = false;
+      router.push(isPinSet ? "/pin-entry" : "/pin-setup");
+    }
+  }, [isLoading, isPinSet]);
 
   const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
 
