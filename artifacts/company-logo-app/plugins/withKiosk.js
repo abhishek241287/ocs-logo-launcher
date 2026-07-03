@@ -102,6 +102,31 @@ import java.util.List;
 
 public class KioskModule extends ReactContextBaseJavaModule {
 
+    // Tracks whether immersive full-screen mode should be enforced. Set true
+    // whenever kiosk mode / immersive mode is (re-)applied, false when the
+    // admin explicitly exits kiosk mode. MainActivity.onWindowFocusChanged()
+    // reads this flag directly (no React bridge round-trip) to reapply the
+    // system UI flags after transient focus losses that never reach JS —
+    // e.g. pulling down the notification shade, a system permission dialog,
+    // or the recents overview — none of which fire React Native's AppState
+    // "active" event, since the app never actually leaves the foreground.
+    private static volatile boolean immersiveActive = false;
+
+    /**
+     * Called from MainActivity.onWindowFocusChanged(true). Best-effort and
+     * silent — if it fails, the next focus-regain event (or the next
+     * AppState "active" transition from JS) will simply retry.
+     */
+    public static void reapplyImmersiveIfNeeded(Activity activity) {
+        if (immersiveActive && activity != null) {
+            try {
+                applyImmersiveModeStatic(activity);
+            } catch (Exception e) {
+                // Ignore — retried on the next focus/foreground event.
+            }
+        }
+    }
+
     public KioskModule(ReactApplicationContext reactContext) {
         super(reactContext);
     }
@@ -271,6 +296,12 @@ public class KioskModule extends ReactContextBaseJavaModule {
             promise.reject("E_NO_ACTIVITY", "No current activity");
             return;
         }
+        // Always clear the immersive flag up front — the admin explicitly
+        // asked to exit kiosk mode, so window-focus recovery should stop
+        // re-enforcing full-screen even if stopLockTask() below throws
+        // (expected/harmless on non-Device-Owner installs that were never
+        // actually in lock-task mode).
+        immersiveActive = false;
         activity.runOnUiThread(() -> {
             try {
                 activity.stopLockTask();
@@ -305,9 +336,14 @@ public class KioskModule extends ReactContextBaseJavaModule {
     // Helpers
     // -----------------------------------------------------------------------
 
+    private void applyImmersiveMode(Activity activity) {
+        applyImmersiveModeStatic(activity);
+        immersiveActive = true;
+    }
+
     @SuppressLint("InlinedApi")
     @SuppressWarnings("deprecation")
-    private void applyImmersiveMode(Activity activity) {
+    private static void applyImmersiveModeStatic(Activity activity) {
         View dv = activity.getWindow().getDecorView();
         dv.setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -440,6 +476,32 @@ const withKiosk = (config) => {
         );
 
         fs.writeFileSync(mainAppPath, src);
+      }
+
+      // Patch MainActivity.kt — reapply immersive mode on window-focus regain.
+      // This covers focus-only interruptions (notification shade, system
+      // dialogs, recents overview) that never fire React Native's AppState
+      // "active" event because the app never actually leaves the foreground,
+      // so the JS-side AppState listener alone can't catch them.
+      const mainActivityPath = path.join(javaDir, "MainActivity.kt");
+      if (fs.existsSync(mainActivityPath) && !fs.readFileSync(mainActivityPath, "utf8").includes("onWindowFocusChanged")) {
+        let src = fs.readFileSync(mainActivityPath, "utf8");
+
+        // KioskModule is in the same package, so no import is needed.
+        // Insert the override just before the class's closing brace.
+        const lastBraceIndex = src.lastIndexOf("}");
+        if (lastBraceIndex !== -1) {
+          const override = `
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) {
+      KioskModule.reapplyImmersiveIfNeeded(this)
+    }
+  }
+`;
+          src = src.slice(0, lastBraceIndex) + override + src.slice(lastBraceIndex);
+          fs.writeFileSync(mainActivityPath, src);
+        }
       }
 
       return cfg;
