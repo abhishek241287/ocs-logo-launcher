@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -22,6 +22,13 @@ export default function AdminScreen() {
   const [isDeviceOwner, setIsDeviceOwner] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isKioskBusy, setIsKioskBusy] = useState(false);
+
+  // Guards against a double-tap opening two overlapping confirm dialogs.
+  // Unlike `isKioskBusy` (only true once the user confirms), this flips true
+  // the instant the row is tapped, before Alert.alert even renders, and is
+  // reset on every dialog exit path (confirm, cancel, or Android
+  // back-button/tap-outside dismissal via onDismiss).
+  const isDialogOpenRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,16 +56,21 @@ export default function AdminScreen() {
   // calls. kiosk.startKioskMode/stopKioskMode are internally timeout-guarded
   // (see utils/kiosk.ts), so this await can never hang the admin screen.
   const handleEnableKiosk = useCallback(() => {
-    if (isKioskBusy) return;
+    if (isKioskBusy || isDialogOpenRef.current) return;
+    isDialogOpenRef.current = true;
     Alert.alert(
       "Enable Kiosk Mode",
       "This will lock the device to the OCS OORJA Launcher. Only the admin can exit kiosk mode.",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => { isDialogOpenRef.current = false; },
+        },
         {
           text: "Enable",
           onPress: async () => {
-            if (isKioskBusy) return;
+            if (isKioskBusy) { isDialogOpenRef.current = false; return; }
             setIsKioskBusy(true);
             try {
               const allowedPkgs = CURATED_APPS
@@ -71,25 +83,32 @@ export default function AdminScreen() {
               setIsLocked(locked);
             } finally {
               setIsKioskBusy(false);
+              isDialogOpenRef.current = false;
             }
           },
         },
-      ]
+      ],
+      { cancelable: true, onDismiss: () => { isDialogOpenRef.current = false; } }
     );
   }, [enabledApps, setKioskEnabled, isKioskBusy]);
 
   const handleExitKiosk = useCallback(() => {
-    if (isKioskBusy) return;
+    if (isKioskBusy || isDialogOpenRef.current) return;
+    isDialogOpenRef.current = true;
     Alert.alert(
       "Exit Kiosk Mode",
       "The device will leave kiosk mode and become freely accessible until an admin re-enables it.",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => { isDialogOpenRef.current = false; },
+        },
         {
           text: "Exit Kiosk",
           style: "destructive",
           onPress: async () => {
-            if (isKioskBusy) return;
+            if (isKioskBusy) { isDialogOpenRef.current = false; return; }
             setIsKioskBusy(true);
             try {
               await kiosk.stopKioskMode();
@@ -97,10 +116,12 @@ export default function AdminScreen() {
               setIsLocked(false);
             } finally {
               setIsKioskBusy(false);
+              isDialogOpenRef.current = false;
             }
           },
         },
-      ]
+      ],
+      { cancelable: true, onDismiss: () => { isDialogOpenRef.current = false; } }
     );
   }, [setKioskEnabled, isKioskBusy]);
 
