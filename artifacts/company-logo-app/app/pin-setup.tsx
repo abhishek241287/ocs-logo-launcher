@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
@@ -34,6 +34,14 @@ export default function PinSetupScreen() {
   const [currentInput, setCurrentInput] = useState("");
   const [error, setError] = useState("");
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const pendingTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  useEffect(() => {
+    return () => {
+      pendingTimers.current.forEach(clearTimeout);
+      pendingTimers.current = [];
+    };
+  }, []);
 
   const shake = () => {
     Animated.sequence([
@@ -60,11 +68,12 @@ export default function PinSetupScreen() {
 
     if (next.length === PIN_LENGTH) {
       if (step === "create") {
-        setTimeout(() => {
+        const t = setTimeout(() => {
           setFirstPin(next);
           setCurrentInput("");
           setStep("confirm");
         }, 300);
+        pendingTimers.current.push(t);
       } else {
         if (next === firstPin) {
           if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -77,11 +86,12 @@ export default function PinSetupScreen() {
           shake();
           setError("PINs don't match. Try again.");
           setCurrentInput("");
-          setTimeout(() => {
+          const t = setTimeout(() => {
             setStep("create");
             setFirstPin("");
             setError("");
           }, 1500);
+          pendingTimers.current.push(t);
         }
       }
     }
