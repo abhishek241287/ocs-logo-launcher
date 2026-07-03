@@ -18,13 +18,26 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const SECRET_TAPS = 5;
-const TAP_WINDOW_MS = 2500;
+const TAP_WINDOW_MS = 3000;
+const INTENT_TIMEOUT_MS = 4000;
+
+/** Rejects after `ms` if `promise` hasn't settled — guarantees callers never hang. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("E_TIMEOUT")), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
 
 const IS_EXPO_GO =
   (Constants.appOwnership as string | null) === "expo" ||
@@ -44,16 +57,26 @@ let isLaunching = false;
 let lastLaunchTime = 0;
 const LAUNCH_DEBOUNCE_MS = 500;
 
+function showNotInstalledToast() {
+  if (Platform.OS === "android") {
+    ToastAndroid.show("Application not installed.", ToastAndroid.SHORT);
+  }
+}
+
 /**
  * Launch an allowed app.
  *
  * Package-based apps (Chrome, YouTube, …) use the native KioskModule.launchApp()
- * which calls PackageManager.getLaunchIntentForPackage() and activity.startActivity()
- * — the Android-recommended path, and the only one that works correctly when the
- * launcher is in kiosk / immersive mode.
+ * which calls PackageManager.getLaunchIntentForPackage() with a null check, and
+ * activity.startActivity() — the Android-recommended path, and the only one that
+ * works correctly when the launcher is in kiosk / immersive mode.
  *
  * Action-based apps (Camera) use expo-intent-launcher with the raw action because
  * they have no single package name to look up.
+ *
+ * Every path is wrapped in a timeout (see kiosk.launchApp / withTimeout below) so
+ * a stuck native or intent call can never freeze the launcher UI — the debounce
+ * guard is always released in `finally`.
  *
  * In Device Owner mode the lock-task whitelist enforces the allowlist at the OS
  * level; this JS-side check is a defense-in-depth layer so hidden apps never
@@ -88,45 +111,79 @@ async function launchApp(app: AppDef, enabledApps: string[]): Promise<void> {
 
   try {
     if (isActionIntent) {
-      // Camera and other pure-action intents — no package name to look up
-      await IntentLauncher.startActivityAsync(intentAction, {});
-    } else {
-      // Package-based apps — use getLaunchIntentForPackage() natively
-      await kiosk.launchApp(packageName);
+      // Camera and other pure-action intents — no package name to look up.
+      // Wrapped in a timeout so a stuck intent resolver can never freeze the UI.
+      try {
+        await withTimeout(IntentLauncher.startActivityAsync(intentAction, {}), INTENT_TIMEOUT_MS);
+        addLaunchEntry({
+          appName: name,
+          packageName,
+          intent: intentAction,
+          flags: "action",
+          status: "success",
+          sdkVersion: SDK_VERSION,
+          expoVersion: EXPO_VERSION,
+          isExpoGo: IS_EXPO_GO,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        const isNotInstalled =
+          error.message.includes("ActivityNotFoundException") ||
+          error.message.includes("No Activity found") ||
+          error.message.includes("No activity found");
+        if (isNotInstalled) showNotInstalledToast();
+        addLaunchEntry({
+          appName: name,
+          packageName,
+          intent: intentAction,
+          flags: "action",
+          status: "failed",
+          error: isNotInstalled ? `Not installed: ${name}` : error.message,
+          errorStack: error.stack,
+          sdkVersion: SDK_VERSION,
+          expoVersion: EXPO_VERSION,
+          isExpoGo: IS_EXPO_GO,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return;
     }
 
-    addLaunchEntry({
-      appName: name,
-      packageName,
-      intent: intentAction ?? "getLaunchIntentForPackage",
-      flags: isActionIntent ? "action" : "getLaunchIntentForPackage+NEW_TASK",
-      status: "success",
-      sdkVersion: SDK_VERSION,
-      expoVersion: EXPO_VERSION,
-      isExpoGo: IS_EXPO_GO,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    const isNotInstalled =
-      error.message.includes("E_NOT_INSTALLED") ||
-      error.message.includes("ActivityNotFoundException") ||
-      error.message.includes("No Activity found") ||
-      error.message.includes("No activity found");
+    // Package-based apps — native getLaunchIntentForPackage(), never throws,
+    // never hangs (internally timeout-guarded); always resolves a LaunchResult.
+    const result = await kiosk.launchApp(packageName);
 
-    addLaunchEntry({
-      appName: name,
-      packageName,
-      intent: intentAction ?? "getLaunchIntentForPackage",
-      flags: isActionIntent ? "action" : "getLaunchIntentForPackage+NEW_TASK",
-      status: "failed",
-      error: isNotInstalled ? `Not installed: ${packageName}` : error.message,
-      errorStack: error.stack,
-      sdkVersion: SDK_VERSION,
-      expoVersion: EXPO_VERSION,
-      isExpoGo: IS_EXPO_GO,
-      timestamp: new Date().toISOString(),
-    });
+    if (result.ok) {
+      addLaunchEntry({
+        appName: name,
+        packageName,
+        intent: "getLaunchIntentForPackage",
+        flags: "getLaunchIntentForPackage+NEW_TASK",
+        status: "success",
+        sdkVersion: SDK_VERSION,
+        expoVersion: EXPO_VERSION,
+        isExpoGo: IS_EXPO_GO,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      if (result.reason === "not_installed") showNotInstalledToast();
+      addLaunchEntry({
+        appName: name,
+        packageName,
+        intent: "getLaunchIntentForPackage",
+        flags: "getLaunchIntentForPackage+NEW_TASK",
+        status: "failed",
+        error:
+          result.reason === "not_installed"
+            ? `Not installed: ${packageName}`
+            : result.message ?? result.reason,
+        sdkVersion: SDK_VERSION,
+        expoVersion: EXPO_VERSION,
+        isExpoGo: IS_EXPO_GO,
+        timestamp: new Date().toISOString(),
+      });
+    }
   } finally {
     isLaunching = false;
   }
@@ -174,8 +231,8 @@ export default function HomeScreen() {
     setAdminAuthenticated,
   } = useLauncher();
 
-  const tapCount = useRef(0);
-  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tapTimestamps = useRef<number[]>([]);
+  const isNavigatingToAdmin = useRef(false);
   const now = useClock();
 
   // -------------------------------------------------------------------------
@@ -218,6 +275,11 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       setAdminAuthenticated(false);
+      // Screen regained focus (e.g. returning from pin-entry/pin-setup) —
+      // clear the navigation debounce and any stale taps so the gesture
+      // works again immediately.
+      isNavigatingToAdmin.current = false;
+      tapTimestamps.current = [];
       if (isKioskEnabled) {
         kiosk.enableImmersiveMode().catch(() => {});
       }
@@ -226,26 +288,35 @@ export default function HomeScreen() {
 
   // -------------------------------------------------------------------------
   // Secret logo tap → admin
+  //
+  // Sliding-window tap detector: keeps only tap timestamps from the last
+  // TAP_WINDOW_MS. Fires exactly once per 5-tap burst — `isNavigatingToAdmin`
+  // debounces any further taps until the screen is refocused, so rapid
+  // repeated taps can never open the PIN screen twice or double-navigate.
+  // No timers are used, so there is nothing that can leak or freeze.
   // -------------------------------------------------------------------------
   const handleLogoTap = () => {
-    tapCount.current += 1;
+    if (isNavigatingToAdmin.current) return;
+
+    const now = Date.now();
+    tapTimestamps.current = [...tapTimestamps.current, now].filter(
+      (t) => now - t <= TAP_WINDOW_MS
+    );
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
-    if (tapTimer.current) clearTimeout(tapTimer.current);
-    if (tapCount.current >= SECRET_TAPS) {
-      tapCount.current = 0;
+
+    if (tapTimestamps.current.length >= SECRET_TAPS) {
+      tapTimestamps.current = [];
+      isNavigatingToAdmin.current = true;
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
       if (!isLoading) {
         router.push(isPinSet ? "/pin-entry" : "/pin-setup");
       }
-      return;
     }
-    tapTimer.current = setTimeout(() => {
-      tapCount.current = 0;
-    }, TAP_WINDOW_MS);
   };
 
   const visibleApps = CURATED_APPS.filter((a) => enabledApps.includes(a.id));
