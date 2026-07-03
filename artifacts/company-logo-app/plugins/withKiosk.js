@@ -289,8 +289,15 @@ public class KioskModule extends ReactContextBaseJavaModule {
             return;
         }
         activity.runOnUiThread(() -> {
-            applyImmersiveMode(activity);
-            promise.resolve(true);
+            try {
+                applyImmersiveMode(activity);
+                promise.resolve(true);
+            } catch (Exception e) {
+                // Never let an exception escape on the UI thread — an uncaught
+                // exception here would crash the whole app (e.g. if the window
+                // was torn down mid-call due to rotation/backgrounding/lock).
+                promise.reject("E_IMMERSIVE", e.getMessage());
+            }
         });
     }
 
