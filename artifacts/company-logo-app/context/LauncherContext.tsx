@@ -24,6 +24,9 @@ export interface AppDef {
   color: string;
 }
 
+// Curated launcher apps — exactly these 8, in this order. Do not add more
+// without an explicit product decision; the launcher intentionally exposes
+// only a fixed, vetted app set.
 export const CURATED_APPS: AppDef[] = [
   {
     id: "youtube",
@@ -34,20 +37,20 @@ export const CURATED_APPS: AppDef[] = [
     color: "#FF0000",
   },
   {
-    id: "instagram",
-    name: "Instagram",
-    packageName: "com.instagram.android",
-    iconLib: "MaterialIcons",
-    icon: "camera",
-    color: "#C13584",
-  },
-  {
     id: "facebook",
     name: "Facebook",
     packageName: "com.facebook.katana",
     iconLib: "MaterialCommunityIcons",
     icon: "facebook",
     color: "#1877F2",
+  },
+  {
+    id: "instagram",
+    name: "Instagram",
+    packageName: "com.instagram.android",
+    iconLib: "MaterialIcons",
+    icon: "camera",
+    color: "#C13584",
   },
   {
     id: "whatsapp",
@@ -72,14 +75,6 @@ export const CURATED_APPS: AppDef[] = [
     iconLib: "MaterialIcons",
     icon: "email",
     color: "#EA4335",
-  },
-  {
-    id: "maps",
-    name: "Maps",
-    packageName: "com.google.android.apps.maps",
-    iconLib: "MaterialIcons",
-    icon: "map",
-    color: "#34A853",
   },
   {
     id: "camera",
